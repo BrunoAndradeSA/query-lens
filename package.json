@@ -1,0 +1,10 @@
+{
+  "name": "query-lens",
+  "private": true,
+  "type": "module",
+  "description": "Oracle SQL Query Visualizer - Interactive Relationship Diagrams",
+  "scripts": {
+    "server": "npx serve . -p 8080 --cors",
+    "test": "node --test tests/*.test.js"
+  }
+}

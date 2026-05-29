@@ -1,0 +1,521 @@
+import { createEditor, setEditorTheme, formatInEditor, getEditorValue, setEditorValue } from './ui/editor.js';
+import { createToolbar } from './ui/toolbar.js';
+import { showNotification, clearNotifications } from './ui/notifications.js';
+import { buildAst, validateSql } from './parser/ast-builder.js';
+import { extractRelationships } from './parser/relationship-extractor.js';
+import { buildGraphModel, getGraphStats } from './graph/graph-builder.js';
+import { GraphRenderer } from './graph/graph-renderer.js';
+import { estimateQueryCost, annotateGraphModel } from './analysis/cost-estimator.js';
+import { debounce } from './utils/helpers.js';
+
+function isBenignMonacoError(msg) {
+  return msg && (
+    msg.includes('message channel closed') ||
+    msg.includes('listener indicated an asynchronous') ||
+    msg.includes('Failed to load')
+  );
+}
+
+window.addEventListener('unhandledrejection', function (e) {
+  var msg = (e.reason && (e.reason.message || e.reason.toString())) || '';
+  if (isBenignMonacoError(msg)) {
+    e.preventDefault();
+  }
+});
+
+window.addEventListener('error', function (e) {
+  if (isBenignMonacoError(e.message || '')) {
+    e.preventDefault();
+  }
+});
+
+class App {
+  constructor() {
+    this.editor = null;
+    this.renderer = null;
+    this.toolbar = null;
+    this.currentAst = null;
+    this.currentGraphModel = null;
+    this.currentCost = null;
+    this.currentLayout = 'cose';
+    this.statusBar = null;
+    this.emptyObserver = null;
+
+    this.onEditorChange = debounce(() => {
+      this.processSql();
+    }, 500);
+  }
+
+  async init() {
+    console.log('[QueryLens] Initializing...');
+
+    await this.waitForMonaco();
+    await this.waitForCytoscape();
+
+    console.log('[QueryLens] Dependencies loaded');
+
+    this.initEditor();
+    this.initGraph();
+    this.initTheme();
+    this.initToolbar();
+    this.initStatusBar();
+    this.initSplitter();
+    this.initCostToggle();
+    this.initEmptyStateObserver();
+    this.setupKeyboardShortcuts();
+
+    console.log('[QueryLens] Components initialized');
+
+    this.processSql();
+  }
+
+  async waitForMonaco() {
+    const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+    if (window.__monacoReady) {
+      console.log('[QueryLens] Waiting for Monaco Editor...');
+      await window.__monacoReady;
+      console.log('[QueryLens] Monaco Editor loaded');
+      setEditorTheme(theme);
+      return;
+    }
+    return new Promise(resolve => {
+      const check = () => {
+        if (typeof monaco !== 'undefined' && typeof monaco.editor?.create === 'function') {
+          setEditorTheme(theme);
+          resolve();
+        } else {
+          setTimeout(check, 50);
+        }
+      };
+      check();
+    });
+  }
+
+  async waitForCytoscape() {
+    if (typeof cytoscape !== 'undefined') return;
+    console.log('[QueryLens] Waiting for Cytoscape...');
+    return new Promise(resolve => {
+      const check = () => {
+        if (typeof cytoscape !== 'undefined') resolve();
+        else setTimeout(check, 50);
+      };
+      check();
+    });
+  }
+
+  initEditor() {
+    const container = document.getElementById('editor-container');
+    if (!container) {
+      console.error('[QueryLens] editor-container element not found');
+      return;
+    }
+
+    console.log('[QueryLens] Creating Monaco editor...');
+    this.editor = createEditor(container);
+
+    if (!this.editor) {
+      console.error('[QueryLens] Failed to create editor');
+      return;
+    }
+
+    console.log('[QueryLens] Editor created');
+
+    this.editor.onDidChangeModelContent(() => {
+      this.onEditorChange();
+    });
+  }
+
+  initGraph() {
+    const container = document.getElementById('graph');
+    if (!container) {
+      console.error('[QueryLens] graph element not found');
+      return;
+    }
+
+    console.log('[QueryLens] Initializing Cytoscape graph...');
+    this.renderer = new GraphRenderer(container);
+    this.renderer.init();
+    console.log('[QueryLens] Graph initialized');
+  }
+
+  initToolbar() {
+    const container = document.getElementById('toolbar-area');
+    if (!container) return;
+
+    this.toolbar = createToolbar(container, {
+      onRun: () => this.processSql(),
+      onFormat: () => this.formatSql(),
+      onValidate: () => this.validateSql(),
+      onClear: () => this.clearAll(),
+      onFit: () => this.fitGraph(),
+      onRelayout: () => this.relayoutGraph(),
+      onExport: () => this.exportGraph(),
+      onLayoutChange: (layout) => this.onLayoutChange(layout)
+    });
+
+    const savedLayout = (() => { try { return localStorage.getItem('querylens_layout'); } catch (e) { return null; } })();
+    if (savedLayout && this.toolbar.setLayout) {
+      this.toolbar.setLayout(savedLayout);
+      this.currentLayout = savedLayout;
+    }
+  }
+
+  initStatusBar() {
+    this.statusBar = {
+      tables: document.getElementById('status-tables'),
+      joins: document.getElementById('status-joins'),
+      status: document.getElementById('status-indicator')
+    };
+  }
+
+  initCostToggle() {
+    const panel = document.getElementById('cost-panel');
+    const header = panel?.querySelector('.cost-header');
+    if (!header) return;
+
+    header.addEventListener('click', (e) => {
+      if (e.target.closest('.cost-toggle')) return;
+      this.toggleCostPanel();
+    });
+
+    const toggle = document.getElementById('cost-toggle');
+    if (toggle) {
+      toggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.toggleCostPanel();
+      });
+    }
+  }
+
+  initEmptyStateObserver() {
+  }
+
+  showEmptyState() {
+    const el = document.getElementById('empty-state');
+    if (el) el.style.display = '';
+  }
+
+  hideEmptyState() {
+    const el = document.getElementById('empty-state');
+    if (el) el.style.display = 'none';
+  }
+
+  initSplitter() {
+    const splitter = document.getElementById('splitter');
+    const left = document.querySelector('.panel-left');
+    const right = document.querySelector('.panel-right');
+    const container = document.querySelector('.main-container');
+
+    if (!splitter || !left || !right) return;
+
+    let isDragging = false;
+
+    splitter.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      splitter.classList.add('active');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const rect = container.getBoundingClientRect();
+      const percent = ((e.clientX - rect.left) / rect.width) * 100;
+      const clamped = Math.max(30, Math.min(70, percent));
+      left.style.flex = `0 0 ${clamped}%`;
+      right.style.flex = `1 1 ${100 - clamped}%`;
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        splitter.classList.remove('active');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+    });
+  }
+
+  initTheme() {
+    const toggleBtn = document.getElementById('theme-toggle');
+    if (!toggleBtn) return;
+
+    toggleBtn.addEventListener('click', () => {
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      
+      document.documentElement.setAttribute('data-theme', newTheme);
+      document.querySelector('meta[name="color-scheme"]').content = newTheme;
+      localStorage.setItem('querylens_theme', newTheme);
+      
+      setEditorTheme(newTheme);
+      
+      if (this.renderer) {
+        this.renderer.setTheme(newTheme);
+      }
+    });
+
+    const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+    setEditorTheme(currentTheme);
+    if (this.renderer) {
+      this.renderer.setTheme(currentTheme);
+    }
+  }
+
+  setupKeyboardShortcuts() {
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        this.processSql();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        this.formatSql();
+      }
+    });
+  }
+
+  processSql() {
+    if (!this.editor) return;
+    const sql = getEditorValue(this.editor);
+    if (!sql || sql.trim().length === 0) {
+      if (this.renderer) this.renderer.reset();
+      this.showEmptyState();
+      this.updateStatusBar(null);
+      this.updateCostPanel(null);
+      this.currentAst = null;
+      this.currentGraphModel = null;
+      this.currentCost = null;
+      return;
+    }
+
+    this.setStatus('parsing', 'Parsing...');
+
+    console.log('[QueryLens] SQL length:', sql.length);
+    const validation = buildAst(sql);
+    this.currentAst = validation;
+    console.log('[QueryLens] AST errors:', validation.errors?.length, 'has statement:', !!validation.statement, 'from:', validation.statement?.from?.length);
+
+    const hadGraph = this.currentGraphModel && this.currentGraphModel.nodes.length > 0;
+
+    if (validation.errors && validation.errors.length > 0) {
+      console.log('[QueryLens] Parse errors:', validation.errors);
+      this.setStatus('error', 'Query has errors');
+      this.currentCost = null;
+      this.updateCostPanel(null);
+      if (!hadGraph) {
+        if (this.renderer) this.renderer.reset();
+        this.showEmptyState();
+        this.currentGraphModel = null;
+      }
+      return;
+    }
+
+    const relationships = extractRelationships(validation);
+    console.log('[QueryLens] Tables found:', relationships.tables?.length);
+    const graphModel = buildGraphModel(relationships);
+
+    const queryCost = estimateQueryCost(validation);
+    annotateGraphModel(graphModel, queryCost);
+    this.currentCost = queryCost;
+
+    this.currentGraphModel = graphModel;
+
+    if (graphModel.nodes.length === 0) {
+      this.setStatus('ready', 'No tables found');
+      this.updateCostPanel(null);
+      if (!hadGraph) {
+        if (this.renderer) this.renderer.reset();
+        this.showEmptyState();
+        showNotification('No tables or relationships were found in the query.', 'warning');
+      }
+      this.updateStatusBar(graphModel);
+      return;
+    }
+
+    this.hideEmptyState();
+    if (this.renderer) this.renderer.update(graphModel, this.currentLayout);
+    this.updateStatusBar(graphModel);
+    this.updateCostPanel(queryCost);
+    this.setStatus('ready', `${graphModel.nodes.length} tables, ${graphModel.edges.length} relationships`);
+  }
+
+  formatSql() {
+    if (this.editor) {
+      formatInEditor(this.editor);
+      showNotification('SQL formatted successfully', 'success');
+    }
+  }
+
+  validateSql() {
+    const sql = getEditorValue(this.editor);
+    if (!sql || sql.trim().length === 0) {
+      showNotification('No SQL to validate.', 'warning');
+      return;
+    }
+
+    const result = validateSql(sql);
+
+    if (result.valid) {
+      showNotification('SQL syntax is valid!', 'success', 'Validation');
+      this.setStatus('ready', 'Valid SQL');
+    } else {
+      const errors = result.errors.map(e => e.message).join('; ');
+      showNotification(errors || 'Unknown syntax error', 'error', 'Validation Error');
+      this.setStatus('error', 'Invalid SQL');
+    }
+  }
+
+  clearAll() {
+    setEditorValue(this.editor, '');
+    if (this.renderer) this.renderer.reset();
+    this.showEmptyState();
+    this.currentAst = null;
+    this.currentGraphModel = null;
+    this.currentCost = null;
+    this.updateStatusBar(null);
+    this.updateCostPanel(null);
+    this.setStatus('ready', 'Cleared');
+    clearNotifications();
+  }
+
+  fitGraph() {
+    if (this.renderer) {
+      this.renderer.fitGraph();
+    }
+  }
+
+  relayoutGraph() {
+    if (this.renderer && this.currentGraphModel) {
+      this.renderer.update(this.currentGraphModel, this.currentLayout);
+      showNotification('Graph re-laid out', 'info');
+    }
+  }
+
+  onLayoutChange(layout) {
+    this.currentLayout = layout;
+    try { localStorage.setItem('querylens_layout', layout); } catch (e) { /* ignore */ }
+    if (this.renderer && this.currentGraphModel) {
+      this.renderer.update(this.currentGraphModel, layout);
+    }
+  }
+
+  exportGraph() {
+    if (!this.renderer || !this.currentGraphModel) {
+      showNotification('Nothing to export. Please run a query first.', 'warning');
+      return;
+    }
+
+    try {
+      const cy = this.renderer.cy;
+      if (!cy) return;
+
+      const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+      const exportBg = currentTheme === 'light' ? '#fcfbfa' : '#161514';
+
+      const pngData = cy.png({ bg: exportBg, full: true, scale: 2 });
+      const link = document.createElement('a');
+      link.download = 'sql-diagram.png';
+      link.href = pngData;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      showNotification('Graph exported as PNG', 'success', 'Export');
+    } catch (e) {
+      showNotification('Failed to export graph: ' + e.message, 'error');
+    }
+  }
+
+  updateStatusBar(graphModel) {
+    if (!this.statusBar) return;
+
+    const nodeCount = document.getElementById('node-count');
+
+    if (graphModel) {
+      const stats = getGraphStats(graphModel);
+      if (this.statusBar.tables) this.statusBar.tables.textContent = `Tables: ${stats.tables} | CTEs: ${stats.ctes}`;
+      if (this.statusBar.joins) this.statusBar.joins.textContent = `Relations: ${stats.edges}`;
+      if (nodeCount) nodeCount.textContent = `${stats.nodes} ${stats.nodes === 1 ? 'node' : 'nodes'}`;
+    } else {
+      if (this.statusBar.tables) this.statusBar.tables.textContent = 'Tables: 0';
+      if (this.statusBar.joins) this.statusBar.joins.textContent = 'Relations: 0';
+      if (nodeCount) nodeCount.textContent = '0 nodes';
+    }
+  }
+
+  updateCostPanel(queryCost) {
+    const panel = document.getElementById('cost-panel');
+    if (!panel) return;
+
+    if (!queryCost || queryCost.total === 0) {
+      panel.style.display = 'none';
+      return;
+    }
+
+    panel.style.display = 'block';
+
+    const value = document.getElementById('cost-bar-value');
+    const total = document.getElementById('cost-total');
+    const breakdown = document.getElementById('cost-breakdown');
+
+    if (total) total.textContent = queryCost.total;
+
+    if (value) {
+      const pct = Math.min(100, Math.round(queryCost.total * 5));
+      value.style.width = pct + '%';
+    }
+
+    if (breakdown) {
+      breakdown.innerHTML = '';
+      for (const item of queryCost.breakdown) {
+        const row = document.createElement('div');
+        row.className = 'cost-row';
+        const pct = Math.max(5, Math.min(100, Math.round(Math.abs(item.cost) / Math.max(1, queryCost.total) * 100)));
+        row.innerHTML = `
+          <span class="cost-row-label">${item.operation}</span>
+          <span class="cost-row-detail">${item.detail}</span>
+          <span class="cost-row-value">${item.cost > 0 ? '+' : ''}${item.cost}</span>
+          <span class="cost-row-bar"><span style="width:${pct}%"></span></span>
+        `;
+        breakdown.appendChild(row);
+      }
+    }
+
+    const costCollapsed = localStorage.getItem('querylens-cost-collapsed');
+    if (costCollapsed === 'true') {
+      panel.classList.add('collapsed');
+    } else {
+      panel.classList.remove('collapsed');
+    }
+  }
+
+  toggleCostPanel() {
+    const panel = document.getElementById('cost-panel');
+    if (!panel || panel.style.display === 'none') return;
+    const collapsed = panel.classList.toggle('collapsed');
+    localStorage.setItem('querylens-cost-collapsed', collapsed);
+  }
+
+  setStatus(state, text) {
+    if (!this.statusBar || !this.statusBar.status) return;
+    const dot = this.statusBar.status.querySelector('.status-dot');
+    const label = this.statusBar.status.querySelector('.status-label');
+    if (dot) {
+      dot.className = 'status-dot ' + state;
+    }
+    if (label) {
+      label.textContent = text || '';
+    }
+  }
+}
+
+const app = new App();
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => app.init());
+} else {
+  app.init();
+}
+
+export default app;

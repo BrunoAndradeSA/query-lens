@@ -1,0 +1,98 @@
+export function buildGraphModel(relationshipsData) {
+  const { tables, relationships, subqueries } = relationshipsData;
+  const nodes = [];
+  const edges = [];
+  const addedEdges = new Set();
+
+  for (const table of tables) {
+    const displayLabel = table.order ? table.order + '. ' + table.name : table.name;
+    const node = {
+      data: {
+        id: table.id,
+        label: displayLabel,
+        rawLabel: table.name,
+        order: table.order || 0,
+        alias: table.alias || '',
+        type: table.type || 'table',
+        schema: table.schema || '',
+        columns: table.columns || [],
+        originalName: table.originalName || table.name,
+        fromSubquery: !!table.fromSubquery
+      }
+    };
+    nodes.push(node);
+  }
+
+  for (const rel of relationships) {
+    const sourceId = rel.source;
+    const targetId = rel.target;
+
+    if (!tables.find(t => t.id === sourceId) && !tables.find(t => t.id === targetId)) {
+      if (rel.fields && rel.fields.length > 0) {
+        const firstField = rel.fields[0];
+        const leftTable = firstField.left?.table;
+        const rightTable = firstField.right?.table;
+        if (leftTable && rightTable && leftTable !== rightTable) {
+          continue;
+        }
+      }
+    }
+
+    if (!tables.find(t => t.id === sourceId) || !tables.find(t => t.id === targetId)) {
+      continue;
+    }
+
+    const edgeKey = [sourceId, targetId, rel.joinType].sort().join('|');
+    if (addedEdges.has(edgeKey)) continue;
+    addedEdges.add(edgeKey);
+
+    const fields = rel.fields || [];
+    let label = rel.joinType || 'JOIN';
+    if (fields.length > 0) {
+      const fieldStrs = fields.map(f => {
+        const left = f.left?.fullName || f.left?.column || '?';
+        const right = f.right?.fullName || f.right?.column || '?';
+        return `${left} = ${right}`;
+      });
+      label = fieldStrs.join(', ');
+    } else if (rel.using) {
+      label = `USING (${rel.using.join(', ')})`;
+    } else if (rel.natural) {
+      label = 'NATURAL';
+    }
+
+    const edge = {
+      data: {
+        id: `e-${edgeKey.replace(/[^a-zA-Z0-9]/g, '-')}`,
+        source: sourceId,
+        target: targetId,
+        label,
+        joinType: rel.joinType || 'JOIN',
+        natural: !!rel.natural,
+        using: rel.using || null,
+        conditions: rel.conditions || [],
+        fields,
+        implicit: !!rel.implicit
+      }
+    };
+    edges.push(edge);
+  }
+
+  return { nodes, edges };
+}
+
+export function getGraphStats(graphModel) {
+  const nodes = graphModel.nodes.length;
+  const edges = graphModel.edges.length;
+  const tables = graphModel.nodes.filter(n => n.data.type === 'table').length;
+  const subqueries = graphModel.nodes.filter(n => n.data.type === 'subquery').length;
+  const ctes = graphModel.nodes.filter(n => n.data.type === 'cte').length;
+
+  const joinCounts = {};
+  for (const edge of graphModel.edges) {
+    const jt = edge.data.joinType || 'JOIN';
+    joinCounts[jt] = (joinCounts[jt] || 0) + 1;
+  }
+
+  return { nodes, edges, tables, subqueries, ctes, joinCounts };
+}
