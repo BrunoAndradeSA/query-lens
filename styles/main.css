@@ -168,25 +168,25 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: var(--radius-sm);
   background: transparent;
   border: 1px solid var(--border-color);
-  color: var(--text-secondary);
+  color: var(--accent-primary);
   text-decoration: none;
   transition: all var(--transition);
 }
 
 .github-center-btn:hover {
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  border-color: var(--border-light);
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
 }
 
 .github-center-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
 }
 
 .top-bar-right {
