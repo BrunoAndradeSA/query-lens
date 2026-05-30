@@ -40,6 +40,7 @@ class App {
     this.currentLayout = 'cose';
     this.statusBar = null;
     this.emptyObserver = null;
+    this.tableWordMap = new Map();
 
     this.onEditorChange = debounce(() => {
       this.processSql();
@@ -123,6 +124,22 @@ class App {
     this.editor.onDidChangeModelContent(() => {
       this.onEditorChange();
     });
+
+    this.editor.onDidChangeCursorPosition(
+      debounce((e) => {
+        if (!this.renderer || !this.currentGraphModel) return;
+        const model = this.editor.getModel();
+        if (!model) return;
+        const word = model.getWordAtPosition(e.position);
+        if (!word || !word.word) return;
+        const nodeId = this.tableWordMap.get(word.word.toLowerCase());
+        if (!nodeId) return;
+        const node = this.renderer.getNodeById(nodeId);
+        if (node && node.length) {
+          this.renderer.highlightNode(node);
+        }
+      }, 80)
+    );
   }
 
   initGraph() {
@@ -283,9 +300,10 @@ class App {
       this.showEmptyState();
       this.updateStatusBar(null);
       this.updateCostPanel(null);
-      this.currentAst = null;
-      this.currentGraphModel = null;
-      this.currentCost = null;
+    this.currentAst = null;
+    this.currentGraphModel = null;
+    this.tableWordMap.clear();
+    this.currentCost = null;
       return;
     }
 
@@ -307,6 +325,7 @@ class App {
         if (this.renderer) this.renderer.reset();
         this.showEmptyState();
         this.currentGraphModel = null;
+        this.tableWordMap.clear();
       }
       return;
     }
@@ -320,6 +339,7 @@ class App {
     this.currentCost = queryCost;
 
     this.currentGraphModel = graphModel;
+    this.buildTableWordMap(graphModel);
 
     if (graphModel.nodes.length === 0) {
       this.setStatus('ready', 'No tables found');
@@ -363,6 +383,28 @@ class App {
       const errors = result.errors.map(e => e.message).join('; ');
       showNotification(errors || 'Unknown syntax error', 'error', 'Validation Error');
       this.setStatus('error', 'Invalid SQL');
+    }
+  }
+
+  buildTableWordMap(model) {
+    this.tableWordMap.clear();
+    if (!model || !model.nodes) return;
+    for (const node of model.nodes) {
+      const d = node.data;
+      if (!d || !d.id) continue;
+      this.tableWordMap.set(d.id.toLowerCase(), d.id);
+      if (d.alias && d.alias !== d.id) {
+        const key = d.alias.toLowerCase();
+        if (!this.tableWordMap.has(key)) {
+          this.tableWordMap.set(key, d.id);
+        }
+      }
+      if (d.rawLabel && d.rawLabel !== d.id && d.rawLabel !== d.alias) {
+        const key = d.rawLabel.toLowerCase();
+        if (!this.tableWordMap.has(key)) {
+          this.tableWordMap.set(key, d.id);
+        }
+      }
     }
   }
 
