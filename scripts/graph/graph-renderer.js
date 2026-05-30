@@ -27,6 +27,11 @@ function getStyleForTheme(theme) {
       border: isLight ? '#cc6a2c' : '#e07c3e',
       text: isLight ? '#1b1918' : '#f7f5f4'
     },
+    cteSource: {
+      bg: isLight ? '#edf3f3' : '#172a2a',
+      border: isLight ? '#008080' : '#2aa0a0',
+      text: isLight ? '#1b1918' : '#f7f5f4'
+    },
     
     // Joins (Edges)
     innerJoin: '#008080',  // Teal
@@ -83,6 +88,14 @@ function getStyleForTheme(theme) {
         'background-color': themeColors.cte.bg,
         'border-color': themeColors.cte.border,
         'color': themeColors.cte.text
+      }
+    },
+    {
+      selector: 'node[cteSource = "true"]',
+      style: {
+        'background-color': themeColors.cteSource.bg,
+        'border-color': themeColors.cteSource.border,
+        'color': themeColors.cteSource.text
       }
     },
     {

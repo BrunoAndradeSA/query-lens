@@ -7,8 +7,6 @@ export function extractRelationships(ast) {
     return { tables: [], relationships: [], subqueries: [] };
   }
 
-  collectTablesAndRelationships(ast.statement, tables, relationships, subqueries);
-
   if (ast.ctes) {
     for (const cte of ast.ctes) {
       const cteId = `cte:${cte.name}`;
@@ -24,7 +22,14 @@ export function extractRelationships(ast) {
         collectTablesAndRelationships(cte.query, tables, relationships, subqueries);
       }
     }
+    for (const [, entry] of tables) {
+      if (entry.type === 'table') {
+        entry.cteSource = true;
+      }
+    }
   }
+
+  collectTablesAndRelationships(ast.statement, tables, relationships, subqueries);
 
   if (ast.unions) {
     for (const union of ast.unions) {

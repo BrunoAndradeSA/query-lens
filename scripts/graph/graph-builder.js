@@ -17,7 +17,8 @@ export function buildGraphModel(relationshipsData) {
         schema: table.schema || '',
         columns: table.columns || [],
         originalName: table.originalName || table.name,
-        fromSubquery: !!table.fromSubquery
+        fromSubquery: !!table.fromSubquery,
+        cteSource: !!table.cteSource
       }
     };
     nodes.push(node);
