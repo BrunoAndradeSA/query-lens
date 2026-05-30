@@ -525,15 +525,14 @@ function formatSqlText(sql) {
 }
 
 export function formatInEditor(editor) {
-  if (!editor) return;
+  if (!editor) return false;
   const sql = editor.getValue();
-  if (!sql) return;
+  if (!sql) return false;
   const formatted = formatSqlText(sql);
-  editor.executeEdits('format', [{
-    range: editor.getModel().getFullModelRange(),
-    text: formatted
-  }]);
-  editor.getModel().pushUndoStop();
+  if (formatted === sql) return false;
+  editor.pushUndoStop();
+  editor.setValue(formatted);
+  return true;
 }
 
 export function setEditorTheme(theme) {

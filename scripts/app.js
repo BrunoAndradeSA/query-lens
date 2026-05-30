@@ -361,8 +361,7 @@ class App {
   }
 
   formatSql() {
-    if (this.editor) {
-      formatInEditor(this.editor);
+    if (this.editor && formatInEditor(this.editor)) {
       showNotification('SQL formatted successfully', 'success');
     }
   }
