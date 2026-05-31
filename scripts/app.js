@@ -392,13 +392,16 @@ class App {
       const d = node.data;
       if (!d || !d.id) continue;
       this.tableWordMap.set(d.id.toLowerCase(), d.id);
-      if (d.alias && d.alias !== d.id) {
-        const key = d.alias.toLowerCase();
-        if (!this.tableWordMap.has(key)) {
-          this.tableWordMap.set(key, d.id);
+      const aliases = d.aliases || (d.alias ? [d.alias] : []);
+      for (const alias of aliases) {
+        if (alias && alias !== d.id) {
+          const key = alias.toLowerCase();
+          if (!this.tableWordMap.has(key)) {
+            this.tableWordMap.set(key, d.id);
+          }
         }
       }
-      if (d.rawLabel && d.rawLabel !== d.id && d.rawLabel !== d.alias) {
+      if (d.rawLabel && d.rawLabel !== d.id && !aliases.includes(d.rawLabel)) {
         const key = d.rawLabel.toLowerCase();
         if (!this.tableWordMap.has(key)) {
           this.tableWordMap.set(key, d.id);

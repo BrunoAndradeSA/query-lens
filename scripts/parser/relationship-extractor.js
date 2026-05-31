@@ -82,23 +82,21 @@ function collectTablesAndRelationships(statement, tables, relationships, subquer
   }
 }
 
-function getTableKey(ref) {
-  if (!ref) return null;
-  if (ref.type === 'table') {
-    return ref.alias || ref.name;
-  }
-  if (ref.type === 'subquery' || ref.type === 'lateral') {
-    return ref.alias || null;
-  }
-  return null;
-}
-
 function processTableRef(ref, tables, relationships, subqueries, parentStatement) {
   if (!ref) return null;
 
   if (ref.type === 'table') {
     const tableId = ref.schema ? `${ref.schema}.${ref.name}` : ref.name;
-    const key = ref.alias || tableId;
+
+    const cteKey = `cte:${ref.name}`;
+    if (tables.has(cteKey)) {
+      const entry = tables.get(cteKey);
+      if (ref.alias && !entry.aliases) entry.aliases = [];
+      if (ref.alias && !entry.aliases.includes(ref.alias)) entry.aliases.push(ref.alias);
+      return cteKey;
+    }
+
+    const key = tableId;
 
     if (!tables.has(key)) {
       tables.set(key, {
@@ -106,11 +104,18 @@ function processTableRef(ref, tables, relationships, subqueries, parentStatement
         name: ref.name,
         schema: ref.schema || null,
         alias: ref.alias || null,
+        aliases: ref.alias ? [ref.alias] : [],
         type: 'table',
         dbLink: ref.dbLink || null,
         originalName: tableId,
         columns: collectReferencedColumns(ref, parentStatement)
       });
+    } else {
+      const entry = tables.get(key);
+      if (ref.alias && !entry.aliases.includes(ref.alias)) {
+        entry.aliases.push(ref.alias);
+        if (!entry.alias) entry.alias = ref.alias;
+      }
     }
     return key;
   }
@@ -175,17 +180,30 @@ function processJoinInfo(joinInfo, prevKey, currentKey, tables, relationships, p
   }
 
   let source = prevKey;
-  for (const f of fields) {
-    const leftTable = f.left?.table;
-    const rightTable = f.right?.table;
-    if (rightTable && rightTable !== currentKey) {
-      source = rightTable;
-      break;
+
+  if (fields.length > 0) {
+    for (const f of fields) {
+      const leftTable = resolveTableName(f.left?.table, tables);
+      const rightTable = resolveTableName(f.right?.table, tables);
+      if (rightTable && rightTable === prevKey && rightTable !== currentKey) {
+        source = prevKey;
+        break;
+      }
+      if (leftTable && leftTable === prevKey && leftTable !== currentKey) {
+        source = prevKey;
+        break;
+      }
+      if (rightTable && rightTable !== currentKey) {
+        source = rightTable;
+        break;
+      }
+      if (leftTable && leftTable !== currentKey) {
+        source = leftTable;
+        break;
+      }
     }
-    if (leftTable && leftTable !== currentKey) {
-      source = leftTable;
-      break;
-    }
+  } else if (joinInfo.using) {
+    source = prevKey;
   }
 
   const rel = {
@@ -199,10 +217,22 @@ function processJoinInfo(joinInfo, prevKey, currentKey, tables, relationships, p
   };
 
   if (joinInfo.using) {
-    rel.fields.push(...joinInfo.using.map(col => `${source}.${col} = ${currentKey}.${col}`));
+    for (const col of joinInfo.using) {
+      rel.fields.push({ left: { table: source, column: col, fullName: `${source}.${col}` }, right: { table: currentKey, column: col, fullName: `${currentKey}.${col}` }, operator: '=' });
+    }
   }
 
   relationships.push(rel);
+}
+
+function resolveTableName(name, tables) {
+  if (!name) return null;
+  if (tables.has(name)) return name;
+  for (const [key, entry] of tables) {
+    if (entry.aliases && entry.aliases.includes(name)) return key;
+    if (key === `cte:${name}`) return key;
+  }
+  return null;
 }
 
 function extractFieldsFromCondition(cond) {
@@ -268,22 +298,24 @@ function extractFromExpression(expr, tables, relationships) {
     if (leftCol && rightCol && leftCol.table && rightCol.table &&
         leftCol.table !== rightCol.table) {
 
-      if (tables.has(leftCol.table) && tables.has(rightCol.table)) {
+      const leftTable = resolveTableName(leftCol.table, tables);
+      const rightTable = resolveTableName(rightCol.table, tables);
+      if (leftTable && rightTable && leftTable !== rightTable) {
         const existing = relationships.some(r =>
-          (r.source === leftCol.table && r.target === rightCol.table) ||
-          (r.source === rightCol.table && r.target === leftCol.table)
+          (r.source === leftTable && r.target === rightTable) ||
+          (r.source === rightTable && r.target === leftTable)
         );
         if (!existing) {
           relationships.push({
-            source: leftCol.table,
-            target: rightCol.table,
+            source: leftTable,
+            target: rightTable,
             joinType: 'WHERE',
             natural: false,
             using: null,
             conditions: [expr],
             fields: [{
-              left: leftCol,
-              right: rightCol,
+              left: { ...leftCol, table: leftTable },
+              right: { ...rightCol, table: rightTable },
               operator: '='
             }],
             implicit: true

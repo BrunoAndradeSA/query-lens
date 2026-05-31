@@ -94,7 +94,7 @@ describe('buildGraphModel — edges', () => {
     assert.equal(result.edges.length, 0);
   });
 
-  it('deduplicates identical edges', () => {
+  it('does not deduplicate reverse-direction edges', () => {
     const tables = [
       { id: 'a', name: 'users', type: 'table', alias: 'u', columns: [] },
       { id: 'b', name: 'orders', type: 'table', alias: 'o', columns: [] },
@@ -104,7 +104,7 @@ describe('buildGraphModel — edges', () => {
       { source: 'b', target: 'a', joinType: 'INNER JOIN', fields: [] },
     ];
     const result = buildGraphModel(makeRelationships(tables, relationships));
-    assert.equal(result.edges.length, 1);
+    assert.equal(result.edges.length, 2);
   });
 
   it('sets edge label from join condition fields', () => {

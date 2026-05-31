@@ -13,6 +13,7 @@ export function buildGraphModel(relationshipsData) {
         rawLabel: table.name,
         order: table.order || 0,
         alias: table.alias || '',
+        aliases: table.aliases || (table.alias ? [table.alias] : []),
         type: table.type || 'table',
         schema: table.schema || '',
         columns: table.columns || [],
@@ -43,7 +44,7 @@ export function buildGraphModel(relationshipsData) {
       continue;
     }
 
-    const edgeKey = [sourceId, targetId, rel.joinType].sort().join('|');
+    const edgeKey = sourceId + '→' + targetId + '→' + rel.joinType;
     if (addedEdges.has(edgeKey)) continue;
     addedEdges.add(edgeKey);
 
