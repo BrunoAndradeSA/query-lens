@@ -1,4 +1,4 @@
-const CACHE = 'querylens-v1';
+const CACHE = 'querylens-v2';
 
 const PRECACHE = [
   './',
@@ -36,7 +36,7 @@ self.addEventListener('fetch', (event) => {
 
   if (url.origin !== location.origin) return;
 
-  if (request.mode === 'navigate') {
+  if (request.mode === 'navigate' || url.pathname.endsWith('.js')) {
     event.respondWith(networkFirst(request));
   } else {
     event.respondWith(cacheFirst(request));
