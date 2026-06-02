@@ -400,29 +400,37 @@ export class SQLParser {
       connectBy = this.parseConnectByClause();
     }
 
+    if (columns.length === 0) {
+      this.errors.push({ message: 'Expected column list or * after SELECT', position: this.pos });
+    }
+
     return { type: 'select', distinct, columns, from, where, groupBy, having, orderBy, connectBy };
   }
 
   parseColumnList() {
     const columns = [];
+    const clauseKeywords = ['FROM', 'WHERE', 'GROUP', 'HAVING', 'ORDER', 'UNION', 'MINUS', 'INTERSECT', 'EXCEPT', 'FOR', 'OVER', 'PARTITION'];
 
     if (this.peek() && this.peek().value === '*') {
       this.next();
       return [{ expression: { type: 'star' }, alias: null }];
     }
 
-    do {
+    while (this.peek()) {
+      if (clauseKeywords.includes(this.peek().value.toUpperCase()) || this.peek().value === ')') break;
+      if (this.peek().value === ';') break;
+
       const col = this.parseColumn();
-      if (col) columns.push(col);
+      if (col) {
+        columns.push(col);
+      } else {
+        break;
+      }
       if (this.peek() && this.peek().value === ',') {
         this.next();
       } else {
         break;
       }
-    } while (this.peek() && !this.match('FROM', 'WHERE', 'GROUP', 'HAVING', 'ORDER', 'UNION', 'MINUS', 'INTERSECT', 'EXCEPT', 'FOR', ')', 'OVER', 'PARTITION'));
-
-    if (this.peek() && columns.length > 0 && columns[0].expression.type !== 'star') {
-      this.checkMissingFrom(this.peek());
     }
 
     return columns;
