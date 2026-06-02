@@ -76,6 +76,26 @@ export function createToolbar(container, actions = {}) {
   const leftGroup = document.createElement('div');
   leftGroup.className = 'toolbar-group';
 
+  const sampleSelect = document.createElement('select');
+  sampleSelect.className = 'layout-select';
+  sampleSelect.title = 'Load sample code';
+  sampleSelect.style.minWidth = '90px';
+  const sampleOptions = [
+    { value: 'sql', label: 'Sample SQL' },
+    { value: 'package', label: 'Sample Package' }
+  ];
+  for (const opt of sampleOptions) {
+    const el = document.createElement('option');
+    el.value = opt.value;
+    el.textContent = opt.label;
+    sampleSelect.appendChild(el);
+  }
+  sampleSelect.value = 'sql';
+  if (actions.onSampleChange) {
+    sampleSelect.addEventListener('change', () => actions.onSampleChange(sampleSelect.value));
+  }
+  leftGroup.appendChild(sampleSelect);
+
   let first = true;
   for (const btn of groups.editor) {
     if (!first) {

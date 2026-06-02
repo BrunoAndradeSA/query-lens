@@ -74,11 +74,25 @@ export function getLayoutOptions(name = 'cose') {
 }
 
 export function getLayoutForGraph(graphModel) {
+  const isCallGraph = graphModel.nodes && graphModel.nodes.some(n => n.data && n.data.isCallGraph);
+  if (isCallGraph) {
+    return {
+      name: 'breadthfirst',
+      animate: true,
+      animationDuration: 500,
+      fit: true,
+      padding: 50,
+      directed: true,
+      maximal: true,
+      spacingFactor: 1.5
+    };
+  }
   return getLayoutOptions('cose');
 }
 
 export function applyLayout(cy, layoutName = 'cose') {
-  const options = getLayoutOptions(layoutName);
+  const isCallGraph = cy.nodes().some(n => n.data && n.data.isCallGraph);
+  const options = isCallGraph ? getLayoutForGraph({ nodes: [{ data: { isCallGraph: true } }] }) : getLayoutOptions(layoutName);
   const layout = cy.layout(options);
   layout.run();
 }

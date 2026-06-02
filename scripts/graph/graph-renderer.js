@@ -5,32 +5,65 @@ function getStyleForTheme(theme) {
   
   // Theme specific colors matching Oracle Redwood palette
   const themeColors = {
-    text: isLight ? '#1b1918' : '#cccccc',
-    edgeTextBg: isLight ? '#fcfbfa' : '#161514',
-    edgeText: isLight ? '#65605c' : '#999999',
-    selectedBorder: isLight ? '#c74634' : '#e25c40',
-    selectedEdge: isLight ? '#1b1918' : '#ffffff',
+    text: isLight ? '#1a1d23' : '#cccccc',
+    edgeTextBg: isLight ? '#f8f9fa' : '#161514',
+    edgeText: isLight ? '#5a5f69' : '#999999',
+    selectedBorder: isLight ? '#c93228' : '#e25c40',
+    selectedEdge: isLight ? '#1a1d23' : '#ffffff',
     
     // Nodes
     table: {
-      bg: isLight ? '#f7f5f4' : '#221e1c',
-      border: isLight ? '#c74634' : '#e25c40',
-      text: isLight ? '#1b1918' : '#f7f5f4'
+      bg: isLight ? '#f0f2f5' : '#221e1c',
+      border: isLight ? '#c93228' : '#e25c40',
+      text: isLight ? '#1a1d23' : '#f7f5f4'
     },
     subquery: {
-      bg: isLight ? '#faf6f0' : '#2b251e',
+      bg: isLight ? '#f8f3eb' : '#2b251e',
       border: isLight ? '#b37d3e' : '#e0a96d',
-      text: isLight ? '#1b1918' : '#f7f5f4'
+      text: isLight ? '#1a1d23' : '#f7f5f4'
     },
     cte: {
-      bg: isLight ? '#faf0e6' : '#2b1f14',
-      border: isLight ? '#cc6a2c' : '#e07c3e',
-      text: isLight ? '#1b1918' : '#f7f5f4'
+      bg: isLight ? '#f5ece2' : '#2b1f14',
+      border: isLight ? '#c96d2a' : '#e07c3e',
+      text: isLight ? '#1a1d23' : '#f7f5f4'
     },
     cteSource: {
-      bg: isLight ? '#edf3f3' : '#172a2a',
-      border: isLight ? '#008080' : '#2aa0a0',
-      text: isLight ? '#1b1918' : '#f7f5f4'
+      bg: isLight ? '#e8f0f0' : '#172a2a',
+      border: isLight ? '#00747a' : '#2aa0a0',
+      text: isLight ? '#1a1d23' : '#f7f5f4'
+    },
+
+    // Call Graph - Package
+    pkg: {
+      bg: isLight ? '#eef0f7' : '#1a1a2e',
+      border: isLight ? '#5a5a8a' : '#7c7cba',
+      text: isLight ? '#1a1d23' : '#f7f5f4'
+    },
+    // Call Graph - Procedure
+    proc: {
+      bg: isLight ? '#f5f3f1' : '#221e1c',
+      border: isLight ? '#c93228' : '#e25c40',
+      text: isLight ? '#1a1d23' : '#f7f5f4'
+    },
+    callEdge: isLight ? '#d94838' : '#f06040',
+    declareEdge: isLight ? '#4a6fa5' : '#5a8fc9',
+    // Call Graph - Function
+    cfunc: {
+      bg: isLight ? '#eef5ee' : '#1a2e1a',
+      border: isLight ? '#3d7a46' : '#4ca356',
+      text: isLight ? '#1a1d23' : '#f7f5f4'
+    },
+    // Call Graph - Constant
+    const: {
+      bg: isLight ? '#f8f3eb' : '#2b251e',
+      border: isLight ? '#b37d3e' : '#e0a96d',
+      text: isLight ? '#1a1d23' : '#f7f5f4'
+    },
+    // Call Graph - Global Variable
+    gvar: {
+      bg: isLight ? '#f2edf5' : '#2e1a3e',
+      border: isLight ? '#7a5c8c' : '#ab95b8',
+      text: isLight ? '#1a1d23' : '#f7f5f4'
     },
     
     // Joins (Edges)
@@ -96,6 +129,63 @@ function getStyleForTheme(theme) {
         'background-color': themeColors.cteSource.bg,
         'border-color': themeColors.cteSource.border,
         'color': themeColors.cteSource.text
+      }
+    },
+    {
+      selector: 'node[nodeType = "PACKAGE"]',
+      style: {
+        'background-color': themeColors.pkg.bg,
+        'border-color': themeColors.pkg.border,
+        'color': themeColors.pkg.text,
+        'border-width': 3,
+        'font-size': '13px',
+        'font-weight': 'bold'
+      }
+    },
+    {
+      selector: 'node[nodeType = "PROCEDURE"]',
+      style: {
+        'background-color': themeColors.proc.bg,
+        'border-color': themeColors.proc.border,
+        'color': themeColors.proc.text
+      }
+    },
+    {
+      selector: 'node[nodeType = "FUNCTION"]',
+      style: {
+        'background-color': themeColors.cfunc.bg,
+        'border-color': themeColors.cfunc.border,
+        'color': themeColors.cfunc.text
+      }
+    },
+    {
+      selector: 'node[nodeType = "CONSTANT"]',
+      style: {
+        'background-color': themeColors.const.bg,
+        'border-color': themeColors.const.border,
+        'color': themeColors.const.text,
+        'font-style': 'italic'
+      }
+    },
+    {
+      selector: 'node[nodeType = "GLOBAL_VARIABLE"]',
+      style: {
+        'background-color': themeColors.gvar.bg,
+        'border-color': themeColors.gvar.border,
+        'color': themeColors.gvar.text
+      }
+    },
+    {
+      selector: 'node[visibility = "PRIVATE"]',
+      style: {
+        'border-style': 'dashed',
+        'opacity': 0.85
+      }
+    },
+    {
+      selector: 'node[visibility = "PUBLIC"]',
+      style: {
+        'border-style': 'solid'
       }
     },
     {
@@ -189,6 +279,47 @@ function getStyleForTheme(theme) {
       }
     },
     {
+      selector: 'edge[edgeType = "CALLS"]',
+      style: {
+        'line-color': themeColors.callEdge,
+        'target-arrow-color': themeColors.callEdge,
+        'source-arrow-color': themeColors.callEdge,
+        'line-style': 'solid',
+        'width': 2.5,
+        'arrow-scale': 1.5,
+        'curve-style': 'bezier',
+        'target-arrow-shape': 'triangle',
+        'source-arrow-shape': 'none',
+        'label': '',
+        'z-index': 2
+      }
+    },
+    {
+      selector: 'edge[edgeType = "DECLARES"]',
+      style: {
+        'line-color': themeColors.declareEdge,
+        'target-arrow-color': themeColors.declareEdge,
+        'source-arrow-color': themeColors.declareEdge,
+        'line-style': 'dotted',
+        'width': 1.5,
+        'arrow-scale': 1,
+        'target-arrow-shape': 'triangle',
+        'source-arrow-shape': 'none',
+        'label': '',
+        'z-index': 1
+      }
+    },
+    {
+      selector: 'edge[isCallGraph = "true"]',
+      style: {
+        'text-background-color': themeColors.edgeTextBg,
+        'text-background-opacity': 0.9,
+        'text-background-padding': '3px',
+        'font-size': '8px',
+        'color': themeColors.edgeText
+      }
+    },
+    {
       selector: 'edge:selected',
       style: {
         'width': 4,
@@ -239,6 +370,7 @@ export class GraphRenderer {
   }
 
   applyNodeWidth(nodes) {
+    if (!nodes || nodes.some(n => n.data?.isCallGraph)) return;
     const w = this.measureMaxLabelWidth(nodes);
     this.cy.style()
       .selector('node')
@@ -270,6 +402,9 @@ export class GraphRenderer {
     this.currentTheme = theme;
     if (this.cy) {
       this.cy.style(getStyleForTheme(theme)).update();
+      if (this.currentModel) {
+        this.applyNodeWidth(this.currentModel.nodes);
+      }
     }
   }
 
@@ -317,21 +452,45 @@ export class GraphRenderer {
     const bbox = this.container.getBoundingClientRect();
 
     let html = `<div class="tooltip-label">${this.escape(data.label)}</div>`;
-    if (data.alias) {
-      html += `<div class="tooltip-detail">Alias: ${this.escape(data.alias)}</div>`;
-    }
-    if (data.schema) {
-      html += `<div class="tooltip-detail">Schema: ${this.escape(data.schema)}</div>`;
-    }
-    html += `<div class="tooltip-detail">Type: ${data.type || 'table'}</div>`;
+    if (data.isCallGraph) {
+      const nodeType = data.nodeType || data.type || 'unknown';
+      html += `<div class="tooltip-detail">Type: ${nodeType}</div>`;
+      if (data.visibility) {
+        html += `<div class="tooltip-detail">Visibility: ${data.visibility}</div>`;
+      }
+      if (data.returnType) {
+        html += `<div class="tooltip-detail">Returns: ${this.escape(data.returnType)}</div>`;
+      }
+      if (data.dataType) {
+        html += `<div class="tooltip-detail">Data Type: ${this.escape(data.dataType)}</div>`;
+      }
+      if (data._constants) {
+        html += `<div class="tooltip-detail">Constants: ${this.escape(data._constants)}</div>`;
+      }
+      if (data._globals) {
+        html += `<div class="tooltip-detail">Globals: ${this.escape(data._globals)}</div>`;
+      }
+      if (data.params && data.params.length > 0) {
+        const paramNames = data.params.map(p => p.name).join(', ');
+        html += `<div class="tooltip-detail">Params: ${this.escape(paramNames)}</div>`;
+      }
+    } else {
+      if (data.alias) {
+        html += `<div class="tooltip-detail">Alias: ${this.escape(data.alias)}</div>`;
+      }
+      if (data.schema) {
+        html += `<div class="tooltip-detail">Schema: ${this.escape(data.schema)}</div>`;
+      }
+      html += `<div class="tooltip-detail">Type: ${data.type || 'table'}</div>`;
 
-    if (data.columns && data.columns.length > 0) {
-      const cols = data.columns.slice(0, 5);
-      html += `<div class="tooltip-detail">Columns: ${cols.join(', ')}${data.columns.length > 5 ? '...' : ''}</div>`;
-    }
+      if (data.columns && data.columns.length > 0) {
+        const cols = data.columns.slice(0, 5);
+        html += `<div class="tooltip-detail">Columns: ${cols.join(', ')}${data.columns.length > 5 ? '...' : ''}</div>`;
+      }
 
-    if (data.cost) {
-      html += `<div class="tooltip-detail">Cost: ${data.cost}</div>`;
+      if (data.cost) {
+        html += `<div class="tooltip-detail">Cost: ${data.cost}</div>`;
+      }
     }
 
     this.tooltip.innerHTML = html;
@@ -346,13 +505,19 @@ export class GraphRenderer {
     const srcLabel = this.cy.getElementById(data.source).data('label');
     const tgtLabel = this.cy.getElementById(data.target).data('label');
 
-    let html = `<div class="tooltip-label">${this.escape(data.joinType || 'JOIN')}</div>`;
-    html += `<div class="tooltip-detail">${this.escape(srcLabel)} &rarr; ${this.escape(tgtLabel)}</div>`;
-    if (data.label && data.label !== data.joinType) {
-      html += `<div class="tooltip-detail">Condition: ${this.escape(data.label)}</div>`;
-    }
-    if (data.costWidth && data.costWidth > 2.5) {
-      html += `<div class="tooltip-detail">Cost: ${data.costWidth.toFixed(1)}×</div>`;
+    let html;
+    if (data.isCallGraph) {
+      html = `<div class="tooltip-label">${this.escape(data.edgeType || 'RELATION')}</div>`;
+      html += `<div class="tooltip-detail">${this.escape(srcLabel)} &rarr; ${this.escape(tgtLabel)}</div>`;
+    } else {
+      html = `<div class="tooltip-label">${this.escape(data.joinType || 'JOIN')}</div>`;
+      html += `<div class="tooltip-detail">${this.escape(srcLabel)} &rarr; ${this.escape(tgtLabel)}</div>`;
+      if (data.label && data.label !== data.joinType) {
+        html += `<div class="tooltip-detail">Condition: ${this.escape(data.label)}</div>`;
+      }
+      if (data.costWidth && data.costWidth > 2.5) {
+        html += `<div class="tooltip-detail">Cost: ${data.costWidth.toFixed(1)}×</div>`;
+      }
     }
 
     this.tooltip.innerHTML = html;
@@ -418,6 +583,7 @@ export class GraphRenderer {
     this.cy.json({ elements: newElements });
 
     applyLayout(this.cy, layoutName);
+    this.fitGraph();
   }
 
   fitGraph() {

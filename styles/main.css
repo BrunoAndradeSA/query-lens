@@ -50,41 +50,41 @@
 
 html[data-theme="light"] {
   color-scheme: light;
-  --bg-primary: #fcfbfa;      /* rich eggshell/cream background */
-  --bg-secondary: #f2efeb;    /* warm beige panels, header */
-  --bg-tertiary: #ebdcd0;     /* light warm gray/creamy slate */
-  --bg-surface: #dfd5cb;      /* hover states, controls */
-  --border-color: #e0dad4;
-  --border-light: #c5bbb3;
-  --text-primary: #1b1918;    /* dark charcoal */
-  --text-secondary: #65605c;  /* slate grey */
-  --text-muted: #9d9690;      /* warm beige-grey */
+  --bg-primary: #f8f9fa;      /* clean white-gray */
+  --bg-secondary: #eef0f2;    /* cool light gray panels */
+  --bg-tertiary: #e2e5e9;     /* medium light gray */
+  --bg-surface: #d5d9de;      /* hover states, controls */
+  --border-color: #d5d9de;
+  --border-light: #b8bcc3;
+  --text-primary: #1a1d23;    /* near-black */
+  --text-secondary: #5a5f69;  /* medium gray */
+  --text-muted: #8f96a0;      /* muted gray */
 
-  /* Oracle Redwood style highlights for light theme */
-  --accent-primary: #c74634;   /* Darker terracotta for legibility */
-  --accent-secondary: #006666; /* Deep teal for contrast */
-  --accent-gold: #b37d3e;      /* Deep gold */
+  /* Clean accent palette */
+  --accent-primary: #c93228;   /* vibrant red */
+  --accent-secondary: #00747a; /* vivid teal */
+  --accent-gold: #b37d3e;      /* gold */
 
   --accent-blue: var(--accent-secondary);
-  --accent-green: #487a4c;
+  --accent-green: #3d7a46;
   --accent-yellow: var(--accent-gold);
-  --accent-purple: #7a5c8c;
-  --accent-red: #c74634;
+  --accent-purple: #7c4d8c;
+  --accent-red: #c93228;
   --accent-orange: var(--accent-primary);
   
-  --success: #3f8a45;
-  --error: #c74634;
+  --success: #3d7a46;
+  --error: #c93228;
   --warning: #b37d3e;
-  --info: #006666;
+  --info: #00747a;
 
   --logo-table-1: var(--accent-primary);
   --logo-table-2: #7c8ba1;
   --logo-link: var(--accent-secondary);
 
-  --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
   --scrollbar-thumb: var(--border-color);
   --scrollbar-track: var(--bg-primary);
-  --bg-notification: rgba(242, 239, 235, 0.85);
+  --bg-notification: rgba(238, 240, 242, 0.85);
 }
 
 * {

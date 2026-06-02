@@ -7,6 +7,10 @@ import { buildGraphModel, getGraphStats } from './graph/graph-builder.js';
 import { GraphRenderer } from './graph/graph-renderer.js';
 import { estimateQueryCost, annotateGraphModel } from './analysis/cost-estimator.js';
 import { debounce } from './utils/helpers.js';
+import { detectCodeType, CODE_TYPE } from './parser/code-type-detector.js';
+import { tokenize as plsqlTokenize, PLSQLParser } from './parser/plsql-parser.js';
+import { analyzePackage } from './parser/package-analyzer.js';
+import { buildCallGraphModel, getCallGraphStats } from './graph/call-graph-builder.js';
 
 function isBenignMonacoError(msg) {
   return msg && (
@@ -28,6 +32,145 @@ window.addEventListener('error', function (e) {
     e.preventDefault();
   }
 });
+
+const SAMPLE_SQL = `SELECT
+  o.order_id,
+  o.order_date,
+  c.name AS customer_name,
+  c.email,
+  oi.product_id,
+  p.name AS product_name,
+  oi.quantity,
+  oi.unit_price,
+  (oi.quantity * oi.unit_price) AS total_amount,
+  a.street_address,
+  a.city
+FROM
+  orders o
+  INNER JOIN customers c ON o.customer_id = c.customer_id
+  INNER JOIN order_items oi ON o.order_id = oi.order_id
+  INNER JOIN products p ON oi.product_id = p.product_id
+  LEFT JOIN addresses a ON c.customer_id = a.customer_id AND a.address_type = 'SHIPPING'
+WHERE
+  o.order_date >= TO_DATE('2024-01-01', 'YYYY-MM-DD')
+  AND o.status IN ('SHIPPED', 'DELIVERED')
+  AND c.email IS NOT NULL
+ORDER BY
+  o.order_date DESC`;
+
+const SAMPLE_PACKAGE = `CREATE OR REPLACE PACKAGE customer_pkg AS
+  -- Constantes
+  gc_max_credit CONSTANT NUMBER(10,2) := 50000.00;
+  gc_min_order CONSTANT NUMBER(10,2) := 10.00;
+
+  -- Variáveis globais
+  gv_session_user VARCHAR2(100);
+  gv_log_level VARCHAR2(20) := 'INFO';
+
+  -- Procedures públicas
+  PROCEDURE processar_cliente(
+    p_cliente_id IN NUMBER,
+    p_acao IN VARCHAR2 DEFAULT 'CONSULTAR'
+  );
+
+  -- Functions públicas
+  FUNCTION calcular_limite_credito(
+    p_cliente_id IN NUMBER
+  ) RETURN NUMBER;
+
+  FUNCTION obter_status_cliente(
+    p_cliente_id IN NUMBER
+  ) RETURN VARCHAR2;
+
+END customer_pkg;
+/
+
+CREATE OR REPLACE PACKAGE BODY customer_pkg AS
+  -- Variáveis privadas
+  gv_process_count NUMBER := 0;
+
+  -- Procedure privada
+  PROCEDURE carregar_cliente(
+    p_cliente_id IN NUMBER
+  ) IS
+    v_nome VARCHAR2(100);
+  BEGIN
+    SELECT name INTO v_nome FROM customers WHERE customer_id = p_cliente_id;
+    gv_process_count := gv_process_count + 1;
+  EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+      NULL;
+  END;
+
+  -- Function privada
+  FUNCTION validar_cliente_ativo(
+    p_cliente_id IN NUMBER
+  ) RETURN BOOLEAN IS
+    v_status VARCHAR2(20);
+  BEGIN
+    SELECT 'ACTIVE' INTO v_status FROM customers WHERE customer_id = p_cliente_id;
+    RETURN TRUE;
+  EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+      RETURN FALSE;
+  END;
+
+  -- Implementação da procedure pública
+  PROCEDURE processar_cliente(
+    p_cliente_id IN NUMBER,
+    p_acao IN VARCHAR2 DEFAULT 'CONSULTAR'
+  ) IS
+    v_limite NUMBER(10,2);
+  BEGIN
+    carregar_cliente(p_cliente_id);
+
+    IF p_acao = 'CONSULTAR' THEN
+      v_limite := calcular_limite_credito(p_cliente_id);
+    ELSIF p_acao = 'VALIDAR' THEN
+      IF validar_cliente_ativo(p_cliente_id) THEN
+        v_limite := calcular_limite_credito(p_cliente_id);
+      END IF;
+    END IF;
+  END;
+
+  -- Implementação da function pública
+  FUNCTION calcular_limite_credito(
+    p_cliente_id IN NUMBER
+  ) RETURN NUMBER IS
+    v_limite NUMBER(10,2);
+    v_status VARCHAR2(20);
+  BEGIN
+    v_status := obter_status_cliente(p_cliente_id);
+
+    IF v_status = 'PREMIUM' THEN
+      v_limite := gc_max_credit;
+    ELSE
+      v_limite := 5000.00;
+    END IF;
+
+    RETURN v_limite;
+  END;
+
+  -- Implementação da function pública
+  FUNCTION obter_status_cliente(
+    p_cliente_id IN NUMBER
+  ) RETURN VARCHAR2 IS
+    v_total_orders NUMBER;
+  BEGIN
+    SELECT COUNT(*) INTO v_total_orders
+    FROM orders WHERE customer_id = p_cliente_id;
+
+    IF v_total_orders > 100 THEN
+      RETURN 'PREMIUM';
+    ELSIF v_total_orders > 0 THEN
+      RETURN 'REGULAR';
+    ELSE
+      RETURN 'NEW';
+    END IF;
+  END;
+
+END customer_pkg;
+/`;
 
 class App {
   constructor() {
@@ -67,6 +210,7 @@ class App {
 
     console.log('[QueryLens] Components initialized');
 
+    setEditorValue(this.editor, SAMPLE_SQL);
     this.processSql();
   }
 
@@ -167,7 +311,8 @@ class App {
       onFit: () => this.fitGraph(),
       onRelayout: () => this.relayoutGraph(),
       onExport: () => this.exportGraph(),
-      onLayoutChange: (layout) => this.onLayoutChange(layout)
+      onLayoutChange: (layout) => this.onLayoutChange(layout),
+      onSampleChange: (sample) => this.loadSample(sample)
     });
 
     const savedLayout = (() => { try { return localStorage.getItem('querylens_layout'); } catch (e) { return null; } })();
@@ -292,6 +437,24 @@ class App {
     });
   }
 
+  updateCodeTypeBadge(type) {
+    const badge = document.querySelector('.panel-header .badge');
+    if (!badge) return;
+    if (type === CODE_TYPE.PACKAGE) {
+      badge.textContent = 'Package';
+      badge.style.background = 'var(--accent-purple, #ab95b8)';
+      badge.style.color = '#fff';
+    } else if (type === CODE_TYPE.SQL) {
+      badge.textContent = 'Oracle';
+      badge.style.background = '';
+      badge.style.color = '';
+    } else {
+      badge.textContent = 'Unknown';
+      badge.style.background = '';
+      badge.style.color = '';
+    }
+  }
+
   processSql() {
     if (!this.editor) return;
     const sql = getEditorValue(this.editor);
@@ -304,11 +467,76 @@ class App {
     this.currentGraphModel = null;
     this.tableWordMap.clear();
     this.currentCost = null;
+    this.updateCodeTypeBadge(CODE_TYPE.UNKNOWN);
       return;
     }
 
     this.setStatus('parsing', 'Parsing...');
+    this.currentCost = null;
 
+    const codeType = detectCodeType(sql);
+    this.updateCodeTypeBadge(codeType);
+
+    if (codeType === CODE_TYPE.PACKAGE) {
+      this.processPackage(sql);
+      return;
+    }
+
+    this.processSqlQuery(sql);
+  }
+
+  processPackage(sql) {
+    console.log('[QueryLens] Detected Oracle Package');
+
+    const tokens = plsqlTokenize(sql);
+    const parser = new PLSQLParser(tokens);
+    const parsed = parser.parse();
+
+    if (parsed.errors && parsed.errors.length > 0) {
+      console.log('[QueryLens] Package parse errors:', parsed.errors);
+      this.setStatus('error', 'Package has errors');
+      if (this.renderer) this.renderer.reset();
+      this.showEmptyState();
+      this.currentGraphModel = null;
+      this.tableWordMap.clear();
+      showNotification('Failed to parse Oracle Package: ' + parsed.errors[0].message, 'error');
+      return;
+    }
+
+    if (!parsed.name) {
+      this.setStatus('error', 'Could not identify package name');
+      showNotification('Could not identify package name', 'error');
+      return;
+    }
+
+    const analysis = analyzePackage(parsed);
+    const graphModel = buildCallGraphModel(analysis);
+
+    this.currentGraphModel = graphModel;
+    this.currentAst = { type: 'package', parsed };
+    this.buildTableWordMap(graphModel);
+
+    if (graphModel.nodes.length === 0) {
+      this.setStatus('ready', 'Empty package');
+      if (this.renderer) this.renderer.reset();
+      this.showEmptyState();
+      showNotification('No elements found in package.', 'warning');
+      this.updateStatusBar(graphModel);
+      return;
+    }
+
+    this.hideEmptyState();
+    if (this.renderer) {
+      this.renderer.update(graphModel, this.currentLayout);
+    }
+    this.updateStatusBar(graphModel);
+    this.updateCostPanel(null);
+
+    const stats = getCallGraphStats(graphModel);
+    this.setStatus('ready', `${stats.procedures + stats.functions} members, ${stats.calls} calls`);
+  }
+
+  processSqlQuery(sql) {
     console.log('[QueryLens] SQL length:', sql.length);
     const validation = buildAst(sql);
     this.currentAst = validation;
@@ -410,6 +638,15 @@ class App {
     }
   }
 
+  loadSample(sample) {
+    if (sample === 'package') {
+      setEditorValue(this.editor, SAMPLE_PACKAGE);
+    } else {
+      setEditorValue(this.editor, SAMPLE_SQL);
+    }
+    this.processSql();
+  }
+
   clearAll() {
     setEditorValue(this.editor, '');
     if (this.renderer) this.renderer.reset();
@@ -417,9 +654,11 @@ class App {
     this.currentAst = null;
     this.currentGraphModel = null;
     this.currentCost = null;
+    this.tableWordMap.clear();
     this.updateStatusBar(null);
     this.updateCostPanel(null);
     this.setStatus('ready', 'Cleared');
+    this.updateCodeTypeBadge(CODE_TYPE.UNKNOWN);
     clearNotifications();
   }
 
@@ -477,10 +716,17 @@ class App {
     const nodeCount = document.getElementById('node-count');
 
     if (graphModel) {
-      const stats = getGraphStats(graphModel);
-      if (this.statusBar.tables) this.statusBar.tables.textContent = `Tables: ${stats.tables} | CTEs: ${stats.ctes}`;
-      if (this.statusBar.joins) this.statusBar.joins.textContent = `Relations: ${stats.edges}`;
-      if (nodeCount) nodeCount.textContent = `${stats.nodes} ${stats.nodes === 1 ? 'node' : 'nodes'}`;
+      if (graphModel.nodes[0]?.data?.isCallGraph) {
+        const stats = getCallGraphStats(graphModel);
+        if (this.statusBar.tables) this.statusBar.tables.textContent = `Procs: ${stats.procedures} | Funcs: ${stats.functions}`;
+        if (this.statusBar.joins) this.statusBar.joins.textContent = `Calls: ${stats.calls} | Decls: ${stats.declarations}`;
+        if (nodeCount) nodeCount.textContent = `${stats.nodes} ${stats.nodes === 1 ? 'node' : 'nodes'}`;
+      } else {
+        const stats = getGraphStats(graphModel);
+        if (this.statusBar.tables) this.statusBar.tables.textContent = `Tables: ${stats.tables} | CTEs: ${stats.ctes}`;
+        if (this.statusBar.joins) this.statusBar.joins.textContent = `Relations: ${stats.edges}`;
+        if (nodeCount) nodeCount.textContent = `${stats.nodes} ${stats.nodes === 1 ? 'node' : 'nodes'}`;
+      }
     } else {
       if (this.statusBar.tables) this.statusBar.tables.textContent = 'Tables: 0';
       if (this.statusBar.joins) this.statusBar.joins.textContent = 'Relations: 0';

@@ -6,30 +6,7 @@ export function createEditor(container, options = {}) {
 
   try {
     const editor = monaco.editor.create(container, {
-      value: options.initialValue || `SELECT
-  o.order_id,
-  o.order_date,
-  c.name AS customer_name,
-  c.email,
-  oi.product_id,
-  p.name AS product_name,
-  oi.quantity,
-  oi.unit_price,
-  (oi.quantity * oi.unit_price) AS total_amount,
-  a.street_address,
-  a.city
-FROM
-  orders o
-  INNER JOIN customers c ON o.customer_id = c.customer_id
-  INNER JOIN order_items oi ON o.order_id = oi.order_id
-  INNER JOIN products p ON oi.product_id = p.product_id
-  LEFT JOIN addresses a ON c.customer_id = a.customer_id AND a.address_type = 'SHIPPING'
-WHERE
-  o.order_date >= TO_DATE('2024-01-01', 'YYYY-MM-DD')
-  AND o.status IN ('SHIPPED', 'DELIVERED')
-  AND c.email IS NOT NULL
-ORDER BY
-  o.order_date DESC`,
+      value: options.initialValue || '',
       language: 'sql',
       theme: 'vs-dark',
       fontSize: 13,
@@ -483,38 +460,38 @@ export function setEditorTheme(theme) {
       base: 'vs',
       inherit: true,
       rules: [
-        { token: 'keyword', foreground: 'c74634', fontStyle: 'bold' },
-        { token: 'type', foreground: '006666' },
+        { token: 'keyword', foreground: 'c93228', fontStyle: 'bold' },
+        { token: 'type', foreground: '00747a' },
         { token: 'string', foreground: 'b37d3e' },
-        { token: 'number', foreground: '3f8a45' },
-        { token: 'function', foreground: 'c74634' },
-        { token: 'comment', foreground: '9d9690', fontStyle: 'italic' },
-        { token: 'operator', foreground: '65605c' },
-        { token: 'identifier', foreground: '1b1918' },
-        { token: 'variable', foreground: '7a5c8c' },
-        { token: 'parameter', foreground: '65605c' },
-        { token: 'delimiter', foreground: '65605c' }
+        { token: 'number', foreground: '3d7a46' },
+        { token: 'function', foreground: 'c93228' },
+        { token: 'comment', foreground: '8f96a0', fontStyle: 'italic' },
+        { token: 'operator', foreground: '5a5f69' },
+        { token: 'identifier', foreground: '1a1d23' },
+        { token: 'variable', foreground: '7c4d8c' },
+        { token: 'parameter', foreground: '5a5f69' },
+        { token: 'delimiter', foreground: '5a5f69' }
       ],
       colors: {
-        'editor.background': '#fcfbfa',
-        'editor.foreground': '#1b1918',
-        'editor.lineHighlightBackground': '#f2efeb',
-        'editor.selectionBackground': '#dfd5cb',
-        'editor.inactiveSelectionBackground': '#ebdcd0',
-        'editorCursor.foreground': '#1b1918',
-        'editorLineNumber.foreground': '#9d9690',
-        'editorLineNumber.activeForeground': '#1b1918',
-        'editor.selectionHighlightBackground': '#c7463426',
-        'editorBracketMatch.background': '#f2efeb',
-        'editorBracketMatch.border': '#006666',
-        'editorWidget.background': '#f2efeb',
-        'editorWidget.border': '#e0dad4',
-        'input.background': '#fcfbfa',
-        'input.foreground': '#1b1918',
-        'input.border': '#e0dad4',
-        'focusBorder': '#c74634',
-        'list.activeSelectionBackground': '#ebdcd0',
-        'list.hoverBackground': '#f2efeb'
+        'editor.background': '#f8f9fa',
+        'editor.foreground': '#1a1d23',
+        'editor.lineHighlightBackground': '#eef0f2',
+        'editor.selectionBackground': '#dce0e5',
+        'editor.inactiveSelectionBackground': '#e5e8ed',
+        'editorCursor.foreground': '#1a1d23',
+        'editorLineNumber.foreground': '#8f96a0',
+        'editorLineNumber.activeForeground': '#1a1d23',
+        'editor.selectionHighlightBackground': '#c9322826',
+        'editorBracketMatch.background': '#eef0f2',
+        'editorBracketMatch.border': '#00747a',
+        'editorWidget.background': '#eef0f2',
+        'editorWidget.border': '#d5d9de',
+        'input.background': '#f8f9fa',
+        'input.foreground': '#1a1d23',
+        'input.border': '#d5d9de',
+        'focusBorder': '#c93228',
+        'list.activeSelectionBackground': '#e5e8ed',
+        'list.hoverBackground': '#eef0f2'
       }
     });
   } catch (e) {
