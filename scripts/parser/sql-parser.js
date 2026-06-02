@@ -371,6 +371,8 @@ export class SQLParser {
     let from = null;
     if (this.match('FROM')) {
       from = this.parseFromClause();
+    } else if (columns.length === 1 && columns[0].expression && columns[0].expression.type === 'star') {
+      this.checkMissingFrom(this.peek());
     }
 
     let where = null;
@@ -419,7 +421,18 @@ export class SQLParser {
       }
     } while (this.peek() && !this.match('FROM', 'WHERE', 'GROUP', 'HAVING', 'ORDER', 'UNION', 'MINUS', 'INTERSECT', 'EXCEPT', 'FOR', ')', 'OVER', 'PARTITION'));
 
+    if (this.peek() && columns.length > 0 && columns[0].expression.type !== 'star') {
+      this.checkMissingFrom(this.peek());
+    }
+
     return columns;
+  }
+
+  checkMissingFrom(next) {
+    const clauseKeywords = ['WHERE', 'GROUP', 'HAVING', 'ORDER', 'UNION', 'MINUS', 'INTERSECT', 'EXCEPT', 'FOR', 'OVER', 'PARTITION', ')'];
+    if (next && next.type === 'IDENTIFIER' && !clauseKeywords.includes(next.value.toUpperCase())) {
+      this.errors.push({ message: 'Expected FROM keyword — did you mean "FROM"?', position: next.position });
+    }
   }
 
   parseColumn() {
