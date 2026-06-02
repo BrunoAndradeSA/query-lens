@@ -152,6 +152,11 @@ export class PLSQLParser {
     this.errors = [];
   }
 
+  addError(msg) {
+    const token = this.peek() || this.tokens[this.tokens.length - 1] || { value: '', position: 0 };
+    this.errors.push({ message: msg, position: token.position || 0 });
+  }
+
   peek(offset = 0) {
     const idx = this.pos + offset;
     return idx < this.tokens.length ? this.tokens[idx] : null;
@@ -390,10 +395,20 @@ export class PLSQLParser {
         if (isSpec) {
           if (this.match('PROCEDURE')) {
             const proc = this.parseProcedureDecl(true);
-            if (proc) container.procedures.push(proc);
+            if (proc) {
+              container.procedures.push(proc);
+            } else {
+              this.addError('Expected procedure name after PROCEDURE');
+              this.skipUntilSemicolon();
+            }
           } else {
             const func = this.parseFunctionDecl(true);
-            if (func) container.functions.push(func);
+            if (func) {
+              container.functions.push(func);
+            } else {
+              this.addError('Expected function name after FUNCTION');
+              this.skipUntilSemicolon();
+            }
           }
         } else {
           return;
@@ -450,7 +465,10 @@ export class PLSQLParser {
         continue;
       }
 
-      break;
+      if (token) {
+        this.addError('Unexpected token "' + token.value + '"');
+        this.skipUntilSemicolon();
+      }
     }
   }
 

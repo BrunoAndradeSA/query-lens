@@ -601,6 +601,24 @@ class App {
       return;
     }
 
+    const codeType = detectCodeType(sql);
+
+    if (codeType === CODE_TYPE.PACKAGE) {
+      const tokens = plsqlTokenize(sql);
+      const parser = new PLSQLParser(tokens);
+      const parsed = parser.parse();
+
+      if (parsed.errors && parsed.errors.length > 0) {
+        const errors = parsed.errors.map(e => e.message).join('; ');
+        showNotification(errors || 'Unknown parse error', 'error', 'Validation Error');
+        this.setStatus('error', 'Invalid Package');
+      } else {
+        showNotification('Package syntax is valid!', 'success', 'Validation');
+        this.setStatus('ready', 'Valid Package');
+      }
+      return;
+    }
+
     const result = validateSql(sql);
 
     if (result.valid) {
