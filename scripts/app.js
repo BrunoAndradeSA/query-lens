@@ -12,6 +12,7 @@ import { tokenize as plsqlTokenize, PLSQLParser } from './parser/plsql-parser.js
 import { analyzePackage } from './parser/package-analyzer.js';
 import { buildCallGraphModel, getCallGraphStats } from './graph/call-graph-builder.js';
 
+// Verifica se um erro do Monaco é benigno e pode ser ignorado
 function isBenignMonacoError(msg) {
   return msg && (
     msg.includes('message channel closed') ||
@@ -173,6 +174,7 @@ END customer_pkg;
 /`;
 
 class App {
+  // Construtor da classe App, inicializa propriedades e configura o debounce do editor
   constructor() {
     this.editor = null;
     this.renderer = null;
@@ -190,6 +192,7 @@ class App {
     }, 500);
   }
 
+  // Inicializa todos os componentes da aplicação após carregar as dependências
   async init() {
     console.log('[QueryLens] Initializing...');
 
@@ -214,6 +217,7 @@ class App {
     this.processSql();
   }
 
+  // Aguarda o carregamento do Monaco Editor e define o tema
   async waitForMonaco() {
     const theme = document.documentElement.getAttribute('data-theme') || 'dark';
     if (window.__monacoReady) {
@@ -236,6 +240,7 @@ class App {
     });
   }
 
+  // Aguarda o carregamento da biblioteca Cytoscape
   async waitForCytoscape() {
     if (typeof cytoscape !== 'undefined') return;
     console.log('[QueryLens] Waiting for Cytoscape...');
@@ -248,6 +253,7 @@ class App {
     });
   }
 
+  // Cria e configura o editor Monaco com eventos de alteração e cursor
   initEditor() {
     const container = document.getElementById('editor-container');
     if (!container) {
@@ -286,6 +292,7 @@ class App {
     );
   }
 
+  // Inicializa o renderizador de grafos Cytoscape no container
   initGraph() {
     const container = document.getElementById('graph');
     if (!container) {
@@ -299,6 +306,7 @@ class App {
     console.log('[QueryLens] Graph initialized');
   }
 
+  // Cria a barra de ferramentas e restaura o layout salvo
   initToolbar() {
     const container = document.getElementById('toolbar-area');
     if (!container) return;
@@ -322,6 +330,7 @@ class App {
     }
   }
 
+  // Inicializa as referências da barra de status
   initStatusBar() {
     this.statusBar = {
       tables: document.getElementById('status-tables'),
@@ -330,6 +339,7 @@ class App {
     };
   }
 
+  // Configura o evento de toggle do painel de custo
   initCostToggle() {
     const panel = document.getElementById('cost-panel');
     const header = panel?.querySelector('.cost-header');
@@ -349,19 +359,23 @@ class App {
     }
   }
 
+  // Inicializa o observador de estado vazio (reservado para uso futuro)
   initEmptyStateObserver() {
   }
 
+  // Exibe a mensagem de estado vazio na interface
   showEmptyState() {
     const el = document.getElementById('empty-state');
     if (el) el.style.display = '';
   }
 
+  // Oculta a mensagem de estado vazio
   hideEmptyState() {
     const el = document.getElementById('empty-state');
     if (el) el.style.display = 'none';
   }
 
+  // Configura o divisor redimensionável entre os painéis esquerdo e direito
   initSplitter() {
     const splitter = document.getElementById('splitter');
     const left = document.querySelector('.panel-left');
@@ -398,6 +412,7 @@ class App {
     });
   }
 
+  // Configura o botão de alternância de tema claro/escuro
   initTheme() {
     const toggleBtn = document.getElementById('theme-toggle');
     if (!toggleBtn) return;
@@ -424,6 +439,7 @@ class App {
     }
   }
 
+  // Registra atalhos de teclado (Ctrl+Enter para executar, Ctrl+S para formatar)
   setupKeyboardShortcuts() {
     document.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -437,6 +453,7 @@ class App {
     });
   }
 
+  // Atualiza o badge do tipo de código (SQL, Package ou Unknown) no cabeçalho
   updateCodeTypeBadge(type) {
     const badge = document.querySelector('.panel-header .badge');
     if (!badge) return;
@@ -455,6 +472,7 @@ class App {
     }
   }
 
+  // Processa o SQL do editor, detecta o tipo (consulta ou pacote) e roteia para o processamento adequado
   processSql() {
     if (!this.editor) return;
     const sql = getEditorValue(this.editor);
@@ -485,6 +503,7 @@ class App {
     this.processSqlQuery(sql);
   }
 
+  // Processa um pacote Oracle: tokeniza, analisa e constrói o grafo de chamadas
   processPackage(sql) {
     console.log('[QueryLens] Detected Oracle Package');
 
@@ -536,6 +555,7 @@ class App {
     this.setStatus('ready', `${stats.procedures + stats.functions} members, ${stats.calls} calls`);
   }
 
+  // Processa uma consulta SQL: valida, extrai relacionamentos e constrói o grafo com estimativa de custo
   processSqlQuery(sql) {
     console.log('[QueryLens] SQL length:', sql.length);
     const validation = buildAst(sql);
@@ -588,12 +608,14 @@ class App {
     this.setStatus('ready', `${graphModel.nodes.length} tables, ${graphModel.edges.length} relationships`);
   }
 
+  // Formata o SQL no editor usando o formatador interno
   formatSql() {
     if (this.editor && formatInEditor(this.editor)) {
       showNotification('SQL formatted successfully', 'success');
     }
   }
 
+  // Valida a sintaxe do SQL ou pacote Oracle e exibe notificações com o resultado
   validateSql() {
     const sql = getEditorValue(this.editor);
     if (!sql || sql.trim().length === 0) {
@@ -631,6 +653,7 @@ class App {
     }
   }
 
+  // Constrói um mapa de palavras (nomes/alias) para navegação do cursor do editor ao node do grafo
   buildTableWordMap(model) {
     this.tableWordMap.clear();
     if (!model || !model.nodes) return;
@@ -656,6 +679,7 @@ class App {
     }
   }
 
+  // Carrega um SQL de exemplo (consulta ou pacote) no editor e processa automaticamente
   loadSample(sample) {
     if (sample === 'package') {
       setEditorValue(this.editor, SAMPLE_PACKAGE);
@@ -665,6 +689,7 @@ class App {
     this.processSql();
   }
 
+  // Limpa o editor, o grafo e reseta todo o estado da aplicação
   clearAll() {
     setEditorValue(this.editor, '');
     if (this.renderer) this.renderer.reset();
@@ -680,12 +705,14 @@ class App {
     clearNotifications();
   }
 
+  // Ajusta o zoom e a posição do grafo para caber inteiramente na visualização
   fitGraph() {
     if (this.renderer) {
       this.renderer.fitGraph();
     }
   }
 
+  // Reaplica o layout atual no grafo para reorganizar os nodes
   relayoutGraph() {
     if (this.renderer && this.currentGraphModel) {
       this.renderer.update(this.currentGraphModel, this.currentLayout);
@@ -693,6 +720,7 @@ class App {
     }
   }
 
+  // Atualiza o layout do grafo e persiste a preferência no localStorage
   onLayoutChange(layout) {
     this.currentLayout = layout;
     try { localStorage.setItem('querylens_layout', layout); } catch (e) { /* ignore */ }
@@ -701,6 +729,7 @@ class App {
     }
   }
 
+  // Exporta o grafo como imagem PNG e inicia o download
   exportGraph() {
     if (!this.renderer || !this.currentGraphModel) {
       showNotification('Nothing to export. Please run a query first.', 'warning');
@@ -728,6 +757,7 @@ class App {
     }
   }
 
+  // Atualiza as informações de tabelas, joins e contagem de nodes na barra de status
   updateStatusBar(graphModel) {
     if (!this.statusBar) return;
 
@@ -752,6 +782,7 @@ class App {
     }
   }
 
+  // Atualiza o painel de estimativa de custo com barra e detalhamento por operação
   updateCostPanel(queryCost) {
     const panel = document.getElementById('cost-panel');
     if (!panel) return;
@@ -798,6 +829,7 @@ class App {
     }
   }
 
+  // Alterna a exibição do painel de custo entre expandido e recolhido
   toggleCostPanel() {
     const panel = document.getElementById('cost-panel');
     if (!panel || panel.style.display === 'none') return;
@@ -805,6 +837,7 @@ class App {
     localStorage.setItem('querylens-cost-collapsed', collapsed);
   }
 
+  // Define o estado e o texto exibido no indicador de status da barra inferior
   setStatus(state, text) {
     if (!this.statusBar || !this.statusBar.status) return;
     const dot = this.statusBar.status.querySelector('.status-dot');

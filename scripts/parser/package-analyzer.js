@@ -17,6 +17,9 @@ const VISIBILITY = {
   PRIVATE: 'PRIVATE'
 };
 
+// Constrói modelo semântico do package: nodos (procedures, functions, constantes, variáveis) e arestas (declarações e chamadas)
+// @param {Object} parsed - AST do package retornada pelo PLSQLParser
+// @returns {Object} Modelo com arrays de nodes, edges e errors
 export function analyzePackage(parsed) {
   if (!parsed || parsed.type !== 'package') {
     return { nodes: [], edges: [], errors: parsed?.errors || [{ message: 'Invalid package' }] };
@@ -186,6 +189,7 @@ export function analyzePackage(parsed) {
   return { nodes, edges, errors };
 }
 
+// Resolve o ID do nodo destino de uma chamada pelo nome dentro do package (procedure ou function)
 function resolveCallTarget(callName, packageName, nodes) {
   if (!callName) return null;
   const upper = callName.toUpperCase();

@@ -24,6 +24,9 @@ const WEIGHTS = {
   EQUALITY_FILTER: -0.2,
 };
 
+// Estima o custo heurístico total de uma consulta SQL a partir da AST
+// @param {Object} ast - Árvore sintática abstrata da consulta
+// @returns {{total: number, breakdown: Array, details: Object, tableCosts: Object, edgeCosts: Object}} Custo total, detalhamento, estatísticas e custos por tabela/aresta
 export function estimateQueryCost(ast) {
   if (!ast || !ast.statement) {
     return { total: 0, breakdown: [], details: {} };
@@ -185,6 +188,9 @@ export function estimateQueryCost(ast) {
   };
 }
 
+// Calcula o custo estimado de uma subconsulta SELECT (usado recursivamente)
+// @param {Object} stmt - Nó da AST representando um SELECT
+// @returns {number} Custo estimado da subconsulta
 function estimateSelectCost(stmt) {
   if (!stmt) return 0;
   let total = 0;
@@ -221,6 +227,9 @@ function estimateSelectCost(stmt) {
   return +total.toFixed(2);
 }
 
+// Calcula o custo extra de uma expressão, incluindo subconsultas e funções analíticas
+// @param {Object} expr - Nó da AST da expressão
+// @returns {number} Custo adicional estimado
 function expressionExtraCost(expr) {
   if (!expr) return 0;
   let cost = 0;
@@ -260,6 +269,10 @@ function expressionExtraCost(expr) {
   return cost;
 }
 
+// Percorre uma expressão identificando subconsultas e funções analíticas para registrar no breakdown
+// @param {Object} expr - Nó da AST da expressão
+// @param {Array} breakdown - Lista acumuladora de operações com custo
+// @param {Object} details - Objeto de detalhes (hasSubquery, hasAnalytic, etc.)
 function scanExpression(expr, breakdown, details) {
   if (!expr) return;
   if (expr.type === 'subquery' && expr.query) {
@@ -306,6 +319,9 @@ function scanExpression(expr, breakdown, details) {
   if (expr.query) scanExpression(expr.query, breakdown, details);
 }
 
+// Conta predicados em uma expressão, classificando por tipo (igualdade, between, like, or)
+// @param {Object} expr - Nó da AST da expressão
+// @returns {{total: number, equality: number, between: number, like: number, or: number}} Contagem de predicados
 function countPredicates(expr) {
   const result = { total: 0, equality: 0, between: 0, like: 0, or: 0 };
   if (!expr) return result;
@@ -353,6 +369,9 @@ function countPredicates(expr) {
   return result;
 }
 
+// Agrupa operações de mesmo nome e detalhe, somando seus custos
+// @param {Array} breakdown - Lista bruta de operações
+// @returns {Array} Lista deduplicada com custos consolidados
 function mergeBreakdown(breakdown) {
   const map = {};
   for (const item of breakdown) {
@@ -366,6 +385,9 @@ function mergeBreakdown(breakdown) {
   return Object.values(map);
 }
 
+// Anota um modelo de grafo com dados de custo (largura das arestas, custo dos nós, metadados)
+// @param {Object} graphModel - Modelo do grafo (nós e arestas)
+// @param {Object} queryCost - Resultado de estimateQueryCost (total, tableCosts, edgeCosts, etc.)
 export function annotateGraphModel(graphModel, queryCost) {
   if (!graphModel || !queryCost) return;
 

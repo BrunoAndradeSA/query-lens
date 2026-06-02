@@ -1,3 +1,7 @@
+// Retorna uma função debounced que atrasa a execução até que calls cessem por `delay` ms
+// @param {Function} fn - Função a ser executada
+// @param {number} [delay=300] - Milissegundos de espera
+// @returns {Function} Função com comportamento debounced
 export function debounce(fn, delay = 300) {
   let timer = null;
   return function (...args) {
@@ -6,6 +10,10 @@ export function debounce(fn, delay = 300) {
   };
 }
 
+// Retorna uma função throttled que executa no máximo uma vez a cada `limit` ms
+// @param {Function} fn - Função a ser executada
+// @param {number} [limit=100] - Intervalo mínimo entre execuções
+// @returns {Function} Função com comportamento throttled
 export function throttle(fn, limit = 100) {
   let inThrottle = false;
   return function (...args) {
@@ -17,19 +25,32 @@ export function throttle(fn, limit = 100) {
   };
 }
 
+// Escapa caracteres HTML especiais prevenindo injeção XSS
+// @param {string} str - String a ser escapada
+// @returns {string} String com caracteres HTML convertidos
 export function escapeHtml(str) {
   const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
   return String(str).replace(/[&<>"']/g, c => map[c]);
 }
 
+// Capitaliza a primeira letra de uma string e converte o restante para minúsculas
+// @param {string} str - String a ser capitalizada
+// @returns {string} String capitalizada
 export function capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
 
+// Gera um identificador único baseado em timestamp e número aleatório
+// @param {string} [prefix='n'] - Prefixo do ID
+// @returns {string} Identificador único no formato {prefix}-{timestamp}-{random}
 export function uniqueId(prefix = 'n') {
   return prefix + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
 }
 
+// Agrupa elementos de um array conforme uma função de chave
+// @param {Array} arr - Array a ser agrupado
+// @param {Function} keyFn - Função que extrai a chave de agrupamento
+// @returns {Map} Mapa de chave para lista de elementos
 export function groupBy(arr, keyFn) {
   const map = new Map();
   for (const item of arr) {
@@ -40,10 +61,16 @@ export function groupBy(arr, keyFn) {
   return map;
 }
 
+// Clona profundamente um objeto usando serialização JSON
+// @param {Object} obj - Objeto a ser clonado
+// @returns {Object} Cópia profunda do objeto
 export function deepClone(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
+// Formata SQL simples indentando palavras-chave principais
+// @param {string} sql - Código SQL bruto
+// @returns {string} SQL indentado
 export function formatSql(sql) {
   let formatted = '';
   let indent = 0;
@@ -73,11 +100,18 @@ export function formatSql(sql) {
   return formatted.trim();
 }
 
+// Trunca uma string adicionando "..." se exceder o tamanho máximo
+// @param {string} str - String a ser truncada
+// @param {number} [maxLen=50] - Comprimento máximo
+// @returns {string} String truncada
 export function truncate(str, maxLen = 50) {
   if (str.length <= maxLen) return str;
   return str.slice(0, maxLen - 3) + '...';
 }
 
+// Retorna a cor correspondente ao tipo de JOIN para renderização visual
+// @param {string} joinType - Tipo do JOIN (INNER JOIN, LEFT JOIN, etc.)
+// @returns {string} Código hexadecimal da cor
 export function getJoinColor(joinType) {
   const map = {
     'INNER JOIN': '#4fc3f7',
@@ -95,6 +129,9 @@ export function getJoinColor(joinType) {
   return map[joinType] || '#4fc3f7';
 }
 
+// Retorna o rótulo abreviado para o tipo de JOIN
+// @param {string} joinType - Tipo do JOIN (INNER JOIN, LEFT JOIN, etc.)
+// @returns {string} Rótulo curto (INNER, LEFT, RIGHT, etc.)
 export function getJoinLabel(joinType) {
   const map = {
     'INNER JOIN': 'INNER',

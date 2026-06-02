@@ -1,3 +1,6 @@
+// Extrai tabelas, relacionamentos e subconsultas da AST completa incluindo CTEs e unions
+// @param {Object} ast - AST completa da consulta
+// @returns {Object} Objeto com arrays de tabelas, relacionamentos e subconsultas
 export function extractRelationships(ast) {
   const tables = new Map();
   const relationships = [];
@@ -46,6 +49,7 @@ export function extractRelationships(ast) {
   };
 }
 
+// Percorre recursivamente um statement coletando tabelas e relacionamentos de FROM, WHERE e colunas
 function collectTablesAndRelationships(statement, tables, relationships, subqueries, parentContext = null) {
   if (!statement || statement.type !== 'select') return;
 
@@ -82,6 +86,7 @@ function collectTablesAndRelationships(statement, tables, relationships, subquer
   }
 }
 
+// Processa referência a tabela/subconsulta/LATERAL registrando no mapa de tabelas e coletando colunas
 function processTableRef(ref, tables, relationships, subqueries, parentStatement) {
   if (!ref) return null;
 
@@ -165,6 +170,7 @@ function processTableRef(ref, tables, relationships, subqueries, parentStatement
   return null;
 }
 
+// Processa informações de JOIN criando relacionamento entre tabela anterior e atual no grafo
 function processJoinInfo(joinInfo, prevKey, currentKey, tables, relationships, parentStatement) {
   if (!joinInfo) return;
 
@@ -225,6 +231,7 @@ function processJoinInfo(joinInfo, prevKey, currentKey, tables, relationships, p
   relationships.push(rel);
 }
 
+// Resolve o nome real de uma tabela a partir de alias ou nome de CTE no mapa
 function resolveTableName(name, tables) {
   if (!name) return null;
   if (tables.has(name)) return name;
@@ -235,6 +242,7 @@ function resolveTableName(name, tables) {
   return null;
 }
 
+// Extrai pares de colunas de condições binárias de igualdade (=) para relacionamentos
 function extractFieldsFromCondition(cond) {
   const fields = [];
   if (!cond) return fields;
@@ -259,6 +267,7 @@ function extractFieldsFromCondition(cond) {
   return fields;
 }
 
+// Converte expressão column_ref em objeto estruturado com tabela, coluna e fullName
 function resolveColumnRef(expr) {
   if (!expr) return null;
   if (expr.type === 'column_ref') {
@@ -271,6 +280,7 @@ function resolveColumnRef(expr) {
   return null;
 }
 
+// Coleta nomes das colunas referenciadas em um statement que pertencem à tabela especificada
 function collectReferencedColumns(tableRef, statement) {
   const columns = new Set();
 
@@ -289,6 +299,7 @@ function collectReferencedColumns(tableRef, statement) {
   return Array.from(columns);
 }
 
+// Extrai relacionamentos implícitos da cláusula WHERE e subconsultas recursivamente
 function extractFromExpression(expr, tables, relationships) {
   if (!expr) return;
 
@@ -349,6 +360,7 @@ function extractFromExpression(expr, tables, relationships) {
   }
 }
 
+// Extrai recursivamente todas as referências a colunas de uma expressão AST
 function extractColumnRefs(expr) {
   const refs = [];
   if (!expr) return refs;

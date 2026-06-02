@@ -11,6 +11,10 @@ const SVG_ICONS = {
   layout: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>'
 };
 
+// Cria a barra de ferramentas com grupos de botões (editor e grafo) e seletor de layout
+// @param {HTMLElement} container - Elemento DOM onde a toolbar será montada
+// @param {Object} actions - Mapeamento de callbacks para cada ação (onRun, onFormat, etc.)
+// @returns {Object} API pública com métodos setButtonEnabled, getLayout e setLayout
 export function createToolbar(container, actions = {}) {
   const groups = {
     editor: [
@@ -159,6 +163,9 @@ export function createToolbar(container, actions = {}) {
   };
 }
 
+// Cria um botão individual da toolbar com ícone, label e evento de clique
+// @param {Object} config - Configuração do botão (id, label, icon, action, primary)
+// @returns {HTMLElement} Elemento button configurado
 function createButton(config) {
   const btn = document.createElement('button');
   btn.className = `btn${config.primary ? ' btn-primary' : ''}`;
@@ -173,6 +180,8 @@ function createButton(config) {
   return btn;
 }
 
+// Cria um divisor visual entre grupos de botões na toolbar
+// @returns {HTMLElement} Elemento div com classe toolbar-divider
 function createDivider() {
   const div = document.createElement('div');
   div.className = 'toolbar-divider';

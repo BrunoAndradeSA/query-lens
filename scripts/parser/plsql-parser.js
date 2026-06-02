@@ -1,3 +1,6 @@
+// Tokeniza código PL/SQL bruto em lista de tokens (strings, números, identificadores, operadores e comentários)
+// @param {string} sql - Código PL/SQL bruto para tokenizar
+// @returns {Array} Lista de tokens com tipo, valor e posição
 export function tokenize(sql) {
   const tokens = [];
   let i = 0;
@@ -122,6 +125,7 @@ export function tokenize(sql) {
   return tokens;
 }
 
+// Normaliza nome para maiúsculas (padrão Oracle)
 function normalizeName(name) {
   return name ? name.toUpperCase() : name;
 }
@@ -137,6 +141,7 @@ const PLSQL_TYPES = new Set([
   'SIMPLE_INTEGER', 'SIMPLE_FLOAT', 'SIMPLE_DOUBLE'
 ]);
 
+// Verifica se a palavra corresponde a um tipo de dado PL/SQL incluindo %TYPE e %ROWTYPE
 function isPlsqlType(word) {
   if (!word) return false;
   const u = word.toUpperCase();
@@ -146,12 +151,14 @@ function isPlsqlType(word) {
 }
 
 export class PLSQLParser {
+  // Inicializa o parser PL/SQL filtrando comentários e posicionando no primeiro token
   constructor(tokens) {
     this.tokens = tokens.filter(t => t.type !== 'COMMENT');
     this.pos = 0;
     this.errors = [];
   }
 
+  // Registra mensagem de erro associada ao token atual ou ao último token
   addError(msg) {
     const token = this.peek() || this.tokens[this.tokens.length - 1] || { value: '', position: 0 };
     this.errors.push({ message: msg, position: token.position || 0 });
@@ -166,6 +173,7 @@ export class PLSQLParser {
     return this.tokens[this.pos++];
   }
 
+  // Verifica se o próximo token corresponde a algum dos valores (case-insensitive) sem consumi-lo
   match(...values) {
     const token = this.peek();
     if (!token) return false;
@@ -182,12 +190,15 @@ export class PLSQLParser {
     return null;
   }
 
+  // Consome um token de pontuação se corresponder ao valor esperado
   expectPunctuation(value) {
     const token = this.peek();
     if (token && token.type === 'PUNCTUATION' && token.value === value) return this.next();
     return null;
   }
 
+  // Ponto de entrada da análise: processa package tentando unir spec e body quando ambos estão presentes
+  // @returns {Object} AST completa do package com spec, body e erros
   parse() {
     this.skipShowErrors();
     const pkg = this.parsePackage();
@@ -214,6 +225,7 @@ export class PLSQLParser {
     return pkg;
   }
 
+  // Analisa package body reutilizando declarações de procedures/functions já existentes na spec
   parsePackageWithSpec(specProcedures, specFunctions) {
     this.skipSlashDelimiter();
     this.skipShowErrors();
@@ -248,6 +260,7 @@ export class PLSQLParser {
     return this.parseBody(name, specProcedures, specFunctions);
   }
 
+  // Avança tokens ignorando comandos SHOW ERRORS do SQL*Plus
   skipShowErrors() {
     while (this.match('SHOW')) {
       const saved = this.pos;
@@ -262,6 +275,7 @@ export class PLSQLParser {
     }
   }
 
+  // Avança barras (/) isoladas usadas como delimitadores entre comandos no SQL*Plus
   skipSlashDelimiter() {
     while (this.peek() && this.peek().value === '/') {
       const next = this.peek(1);
@@ -273,6 +287,7 @@ export class PLSQLParser {
     }
   }
 
+  // Analisa declaração CREATE [OR REPLACE] PACKAGE [BODY] com nome e opções
   parsePackage() {
     this.skipSlashDelimiter();
     this.consume('CREATE');
@@ -309,6 +324,7 @@ export class PLSQLParser {
     return this.parseSpec(name);
   }
 
+  // Avança tokens ignorando cláusula AUTHID (CURRENT_USER | DEFINER)
   skipAuthid() {
     if (this.match('AUTHID')) {
       this.next();
@@ -316,6 +332,7 @@ export class PLSQLParser {
     }
   }
 
+  // Analisa a specification do package: AS/IS, declarações públicas e END
   parseSpec(name) {
     const spec = {
       procedures: [],
@@ -351,6 +368,7 @@ export class PLSQLParser {
     return { type: 'package', name, spec, body: null };
   }
 
+  // Analisa o body do package: declarações privadas, implementações e blocos BEGIN/END
   parseBody(name, specProcedures, specFunctions) {
     const body = {
       procedures: specProcedures ? specProcedures.map(p => ({ ...p })) : [],
@@ -387,6 +405,7 @@ export class PLSQLParser {
     return { type: 'package', name, spec: null, body };
   }
 
+  // Analisa declarações no nível do package: procedures, functions, tipos, variáveis e constantes
   parseDeclarations(container, isSpec) {
     while (this.peek()) {
       if (this.match('END')) break;
@@ -472,6 +491,7 @@ export class PLSQLParser {
     }
   }
 
+  // Analisa declaração de PROCEDURE com nome e parâmetros (spec ou body)
   parseProcedureDecl(isSpec) {
     this.consume('PROCEDURE');
 
@@ -497,6 +517,7 @@ export class PLSQLParser {
     return { name, params };
   }
 
+  // Analisa declaração de FUNCTION com nome, parâmetros, tipo de retorno e pragmas
   parseFunctionDecl(isSpec) {
     this.consume('FUNCTION');
     const nameToken = this.peek();
@@ -535,6 +556,7 @@ export class PLSQLParser {
     return { name, params, returnType };
   }
 
+  // Analisa lista de parâmetros entre parênteses com nome, modo (IN/OUT) e tipo de dado
   parseParameters() {
     if (!this.peek() || this.peek().value !== '(') return [];
     this.next();
@@ -574,6 +596,7 @@ export class PLSQLParser {
     return params;
   }
 
+  // Analisa tipo de dado PL/SQL incluindo precisão, escala e subtipos como %TYPE
   parseDataType() {
     const token = this.peek();
     if (!token || token.type === 'PUNCTUATION' || token.value === ';' ||
@@ -608,6 +631,7 @@ export class PLSQLParser {
     return typeName.trim();
   }
 
+  // Avança tokens ignorando valor default de parâmetro ou variável respeitando parênteses
   skipDefaultValue() {
     let depth = 0;
     let value = '';
@@ -624,6 +648,7 @@ export class PLSQLParser {
     return value;
   }
 
+  // Analisa declaração de variável ou CONSTANT com nome, tipo, NOT NULL e valor default
   parseVariableOrConstant() {
     const nameToken = this.peek();
     if (!nameToken || nameToken.type !== 'IDENTIFIER') return null;
@@ -664,6 +689,7 @@ export class PLSQLParser {
     return { name, isConstant, dataType, defaultValue };
   }
 
+  // Analisa declaração de TYPE ou SUBTYPE pulando até o ponto e vírgula
   parseTypeDecl() {
     if (this.match('SUBTYPE')) {
       this.skipUntilSemicolon();
@@ -679,6 +705,7 @@ export class PLSQLParser {
     }
   }
 
+  // Avança tokens ignorando declaração completa de CURSOR com parâmetros e RETURN
   skipCursorDecl() {
     this.consume('CURSOR');
     if (this.peek()) this.next();
@@ -697,6 +724,7 @@ export class PLSQLParser {
     this.skipUntilSemicolon();
   }
 
+  // Avança tokens até encontrar ponto e vírgula considerando parênteses aninhados
   skipUntilSemicolon() {
     let depth = 0;
     while (this.peek()) {
@@ -710,6 +738,7 @@ export class PLSQLParser {
     }
   }
 
+  // Avança tokens ignorando bloco completo de PROCEDURE/FUNCTION com BEGIN/END aninhados
   skipProcOrFuncBlock() {
     this.next();
     if (this.peek()) this.next();
@@ -748,6 +777,7 @@ export class PLSQLParser {
     }
   }
 
+  // Analisa implementações de procedures e functions no body, incluindo blocos BEGIN anônimos
   parseBodyImplementations(container) {
     while (this.peek()) {
       if (this.match('END')) break;
@@ -808,6 +838,7 @@ export class PLSQLParser {
     }
   }
 
+  // Analisa implementação completa de PROCEDURE com corpo, chamadas e variáveis
   parseProcedureImpl() {
     this.consume('PROCEDURE');
 
@@ -834,6 +865,7 @@ export class PLSQLParser {
     return { name, params, calls: block.calls, body: block.body, variables: block.variables };
   }
 
+  // Analisa implementação completa de FUNCTION com parâmetros, retorno, corpo e chamadas
   parseFunctionImpl() {
     this.consume('FUNCTION');
 
@@ -863,6 +895,7 @@ export class PLSQLParser {
     return { name, params, returnType, calls: block.calls, body: block.body, variables: block.variables };
   }
 
+  // Avança tokens ignorando seção de declaração entre IS/AS e a palavra BEGIN
   skipDeclarations() {
     let depth = 0;
     while (this.peek()) {
@@ -887,6 +920,7 @@ export class PLSQLParser {
     }
   }
 
+  // Analisa bloco BEGIN/END incluindo seção EXCEPTION, coletando chamadas e variáveis
   parseBlock() {
     const calls = [];
     const variables = [];
@@ -918,6 +952,7 @@ export class PLSQLParser {
     return { calls, body: { calls, variables }, variables };
   }
 
+  // Percorre statements do body identificando chamadas a procedures/funções e estruturas de controle aninhadas
   skipBodyStatements(calls, variables) {
     let depth = 0;
     while (this.peek()) {
@@ -1003,16 +1038,19 @@ const PLSQL_KEYWORDS = new Set([
   'DBMS_OUTPUT', 'DBMS_SQL', 'DBMS_XMLGEN', 'DBMS_LOB', 'DBMS_RANDOM'
 ]);
 
+// Verifica se uma palavra é uma keyword PL/SQL reservada
 function isPlsqlKeyword(word) {
   return PLSQL_KEYWORDS.has(word.toUpperCase());
 }
 
+// Verifica se um identificador segue convenção de nomenclatura de parâmetro (P_, V_, L_, G_, C_)
 function looksLikeParameter(name) {
   const u = name.toUpperCase();
   return u.startsWith('P_') || u.startsWith('V_') || u.startsWith('L_') ||
          u.startsWith('G_') || u.startsWith('C_') || u === 'SELF';
 }
 
+// Verifica se um identificador corresponde a um tipo de dado PL/SQL nativo conhecido
 function looksLikeType(name) {
   const u = name.toUpperCase();
   return u === 'NUMBER' || u === 'VARCHAR2' || u === 'VARCHAR' || u === 'CHAR' ||

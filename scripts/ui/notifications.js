@@ -7,6 +7,8 @@ const ICONS = {
 
 const containerId = 'notification-container';
 
+// Obtém ou cria o contêiner global de notificações no body
+// @returns {HTMLElement} Elemento contêiner de notificações
 function getContainer() {
   let el = document.getElementById(containerId);
   if (!el) {
@@ -18,6 +20,11 @@ function getContainer() {
   return el;
 }
 
+// Exibe uma notificação toast com tipo, mensagem e título opcional
+// @param {string} message - Texto da mensagem
+// @param {string} [type='info'] - Tipo da notificação (success, error, warning, info)
+// @param {string|null} [title] - Título personalizado (usa o padrão do tipo se omitido)
+// @returns {HTMLElement} Elemento da notificação criada
 export function showNotification(message, type = 'info', title = null) {
   const titles = {
     success: 'Success',
@@ -48,6 +55,8 @@ export function showNotification(message, type = 'info', title = null) {
   return notif;
 }
 
+// Remove uma notificação com animação de saída
+// @param {HTMLElement} el - Elemento da notificação a ser removido
 function remove(el) {
   if (el.classList.contains('removing')) return;
   el.classList.add('removing');
@@ -56,11 +65,15 @@ function remove(el) {
   }, 250);
 }
 
+// Escapa caracteres HTML especiais para evitar injeção XSS
+// @param {string} str - String a ser escapada
+// @returns {string} String com caracteres HTML escapados
 function escapeHtml(str) {
   const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
   return String(str).replace(/[&<>"']/g, c => map[c]);
 }
 
+// Limpa todas as notificações exibidas no contêiner
 export function clearNotifications() {
   const container = getContainer();
   container.innerHTML = '';

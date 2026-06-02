@@ -69,10 +69,20 @@ export const LAYOUT_LABELS = {
   breadthfirst: 'Breadth-first'
 };
 
+/**
+ * Retorna as opções de configuração para o nome do layout informado.
+ * @param {string} [name='cose'] - Nome do layout (cose, grid, circle, concentric, breadthfirst)
+ * @returns {Object} Opções de layout
+ */
 export function getLayoutOptions(name = 'cose') {
   return LAYOUTS[name] ? { ...LAYOUTS[name] } : { ...LAYOUTS.cose };
 }
 
+/**
+ * Seleciona o layout apropriado com base no tipo de grafo (chamadas vs. relacional).
+ * @param {Object} graphModel - Modelo de grafo para inspecionar o tipo
+ * @returns {Object} Opções de layout específicas para o tipo de grafo
+ */
 export function getLayoutForGraph(graphModel) {
   const isCallGraph = graphModel.nodes && graphModel.nodes.some(n => n.data && n.data.isCallGraph);
   if (isCallGraph) {
@@ -90,6 +100,11 @@ export function getLayoutForGraph(graphModel) {
   return getLayoutOptions('cose');
 }
 
+/**
+ * Aplica o layout ao grafo Cytoscape, detectando automaticamente o tipo de grafo.
+ * @param {Object} cy - Instância do Cytoscape
+ * @param {string} [layoutName='cose'] - Nome do layout desejado
+ */
 export function applyLayout(cy, layoutName = 'cose') {
   const isCallGraph = cy.nodes().some(n => n.data && n.data.isCallGraph);
   const options = isCallGraph ? getLayoutForGraph({ nodes: [{ data: { isCallGraph: true } }] }) : getLayoutOptions(layoutName);

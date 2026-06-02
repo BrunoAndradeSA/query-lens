@@ -1,5 +1,6 @@
 import { applyLayout } from './graph-layout.js';
 
+// Retorna a matriz de estilos Cytoscape específica para o tema (claro/escuro)
 function getStyleForTheme(theme) {
   const isLight = theme === 'light';
   
@@ -347,6 +348,7 @@ function getStyleForTheme(theme) {
 }
 
 export class GraphRenderer {
+  // Inicializa a instância do renderizador com o contêiner DOM e tema atual
   constructor(container) {
     this.container = container;
     this.cy = null;
@@ -355,6 +357,7 @@ export class GraphRenderer {
     this.currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
   }
 
+  // Mede a largura máxima necessária entre todos os rótulos dos nós usando canvas
   measureMaxLabelWidth(nodes) {
     if (!nodes || nodes.length === 0) return 120;
     const canvas = document.createElement('canvas');
@@ -369,6 +372,7 @@ export class GraphRenderer {
     return Math.max(120, Math.ceil(max) + 28);
   }
 
+  // Aplica a largura calculada dos nós ao estilo do Cytoscape
   applyNodeWidth(nodes) {
     if (!nodes || nodes.some(n => n.data?.isCallGraph)) return;
     const w = this.measureMaxLabelWidth(nodes);
@@ -379,6 +383,7 @@ export class GraphRenderer {
       .update();
   }
 
+  // Inicializa a instância do Cytoscape com configurações padrão e eventos
   init() {
     this.cy = cytoscape({
       container: this.container,
@@ -398,6 +403,7 @@ export class GraphRenderer {
     return this;
   }
 
+  // Alterna o tema visual do grafo (claro/escuro) em tempo de execução
   setTheme(theme) {
     this.currentTheme = theme;
     if (this.cy) {
@@ -408,6 +414,7 @@ export class GraphRenderer {
     }
   }
 
+  // Registra os manipuladores de eventos de interação (clique, hover) no Cytoscape
   setupEvents() {
     this.cy.on('tap', 'node', (evt) => {
       const node = evt.target;
@@ -439,6 +446,7 @@ export class GraphRenderer {
     });
   }
 
+  // Cria o elemento DOM do tooltip e o anexa ao contêiner do grafo
   createTooltip() {
     this.tooltip = document.createElement('div');
     this.tooltip.className = 'cytoscape-tooltip';
@@ -446,6 +454,7 @@ export class GraphRenderer {
     this.container.appendChild(this.tooltip);
   }
 
+  // Exibe o tooltip com informações detalhadas do nó na posição do cursor
   showTooltip(node) {
     const data = node.data();
     const pos = node.renderedPosition();
@@ -499,6 +508,7 @@ export class GraphRenderer {
     this.tooltip.style.top = (pos.y - 10) + 'px';
   }
 
+  // Exibe o tooltip com informações detalhadas da aresta na posição do cursor
   showEdgeTooltip(edge) {
     const data = edge.data();
     const pos = edge.renderedMidpoint();
@@ -526,12 +536,14 @@ export class GraphRenderer {
     this.tooltip.style.top = (pos.y - 10) + 'px';
   }
 
+  // Oculta o tooltip
   hideTooltip() {
     if (this.tooltip) {
       this.tooltip.style.display = 'none';
     }
   }
 
+  // Destaca um nó e seus elementos conectados, esmaecendo o restante
   highlightNode(node) {
     this.clearHighlights();
 
@@ -547,11 +559,13 @@ export class GraphRenderer {
     this.cy.edges().not(connectedEdges).addClass('faded');
   }
 
+  // Remove todos os destaques e restaura a opacidade normal dos elementos
   clearHighlights() {
     this.cy.nodes().removeClass('highlighted faded');
     this.cy.edges().removeClass('highlighted faded');
   }
 
+  // Renderiza o modelo de grafo completo no Cytoscape com o layout especificado
   render(model, layoutName) {
     this.currentModel = model;
 
@@ -565,6 +579,7 @@ export class GraphRenderer {
     this.fitGraph();
   }
 
+  // Atualiza o grafo existente com novos elementos ou faz a renderização inicial se vazio
   update(model, layoutName) {
     if (!model) return;
 
@@ -586,12 +601,14 @@ export class GraphRenderer {
     this.fitGraph();
   }
 
+  // Ajusta o zoom e a viewport para encaixar todos os nós visíveis
   fitGraph() {
     if (this.cy && this.cy.nodes().length > 0) {
       this.cy.fit(undefined, 50);
     }
   }
 
+  // Remove todos os elementos do grafo e reseta o modelo atual
   reset() {
     if (this.cy) {
       this.cy.elements().remove();
@@ -599,10 +616,12 @@ export class GraphRenderer {
     }
   }
 
+  // Retorna um nó do Cytoscape pelo seu ID
   getNodeById(id) {
     return this.cy ? this.cy.getElementById(id) : null;
   }
 
+  // Destrói a instância do Cytoscape e libera recursos
   destroy() {
     if (this.cy) {
       this.cy.destroy();
@@ -611,6 +630,7 @@ export class GraphRenderer {
     this.currentModel = null;
   }
 
+  // Escapa caracteres HTML especiais para prevenir XSS em tooltips
   escape(str) {
     if (!str) return '';
     const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };

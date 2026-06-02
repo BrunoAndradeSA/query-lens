@@ -47,6 +47,9 @@ const ORACLE_FUNCTIONS = new Set([
   'JSON_DATAGUIDE', 'JSON_ARRAYAGG', 'JSON_OBJECTAGG'
 ]);
 
+// Tokeniza uma string SQL em lista de tokens: keywords, identificadores, strings, números, operadores e comentários
+// @param {string} sql - Código SQL bruto para tokenizar
+// @returns {Array} Lista de tokens com tipo, valor e posição
 export function tokenize(sql) {
   const tokens = [];
   let i = 0;
@@ -204,6 +207,7 @@ export function tokenize(sql) {
 }
 
 export class SQLParser {
+  // Inicializa o parser com os tokens, filtrando comentários e hints
   constructor(tokens) {
     this.tokens = tokens.filter(t => t.type !== 'COMMENT' && t.type !== 'HINT');
     this.pos = 0;
@@ -219,6 +223,7 @@ export class SQLParser {
     return this.tokens[this.pos++];
   }
 
+  // Verifica se o próximo token tem o tipo/valor esperado e avança; registra erro em caso de falha
   expect(type, value) {
     const token = this.peek();
     if (!token) {
@@ -236,6 +241,7 @@ export class SQLParser {
     return this.next();
   }
 
+  // Verifica se o próximo token corresponde a alguma das keywords fornecidas sem consumi-lo
   match(...keywords) {
     const token = this.peek();
     if (!token) return false;
@@ -256,6 +262,7 @@ export class SQLParser {
     return null;
   }
 
+  // Avança declarações DDL (CREATE VIEW, etc.) antes do SELECT principal
   skipDDLIfNeeded() {
     const first = this.peek();
     if (!first || (first.type !== 'KEYWORD' && first.type !== 'IDENTIFIER') || first.value.toUpperCase() !== 'CREATE') return;
@@ -295,6 +302,8 @@ export class SQLParser {
     }
   }
 
+  // Ponto de entrada da análise sintática: processa WITH, statement principal e cláusulas UNION
+  // @returns {Object} AST completa da consulta
   parse() {
     this.skipDDLIfNeeded();
     const ctes = this.parseWithClause();
@@ -308,6 +317,7 @@ export class SQLParser {
     return ast;
   }
 
+  // Analisa cláusula WITH (CTE), incluindo variante RECURSIVE e colunas nomeadas
   parseWithClause() {
     if (!this.match('WITH')) return null;
     this.next();
@@ -349,6 +359,7 @@ export class SQLParser {
     return recursive ? { recursive, ctes } : ctes;
   }
 
+  // Analisa uma declaração SQL: SELECT ou subconsulta entre parênteses
   parseStatement() {
     if (this.match('SELECT')) {
       return this.parseSelect();
@@ -363,6 +374,7 @@ export class SQLParser {
     return null;
   }
 
+  // Analisa cláusula SELECT: DISTINCT, colunas, FROM, WHERE, GROUP BY, HAVING, ORDER BY e CONNECT BY
   parseSelect() {
     this.consume('SELECT');
     const distinct = !!this.consume('DISTINCT');
@@ -407,6 +419,7 @@ export class SQLParser {
     return { type: 'select', distinct, columns, from, where, groupBy, having, orderBy, connectBy };
   }
 
+  // Analisa a lista de colunas/expressões após SELECT até encontrar keyword de outra cláusula
   parseColumnList() {
     const columns = [];
     const clauseKeywords = ['FROM', 'WHERE', 'GROUP', 'HAVING', 'ORDER', 'UNION', 'MINUS', 'INTERSECT', 'EXCEPT', 'FOR', 'OVER', 'PARTITION'];
@@ -436,6 +449,7 @@ export class SQLParser {
     return columns;
   }
 
+  // Emite erro sugestivo quando um identificador após SELECT parece indicar falta de FROM
   checkMissingFrom(next) {
     const clauseKeywords = ['WHERE', 'GROUP', 'HAVING', 'ORDER', 'UNION', 'MINUS', 'INTERSECT', 'EXCEPT', 'FOR', 'OVER', 'PARTITION', ')'];
     if (next && next.type === 'IDENTIFIER' && !clauseKeywords.includes(next.value.toUpperCase())) {
@@ -443,6 +457,7 @@ export class SQLParser {
     }
   }
 
+  // Analisa uma coluna/expressão individual com alias opcional
   parseColumn() {
     const expr = this.parseExpression();
     if (!expr) return null;
@@ -470,10 +485,12 @@ export class SQLParser {
     return { expression: expr, alias };
   }
 
+  // Ponto de entrada da análise de expressões, delegando para o nível de precedência mais baixo
   parseExpression() {
     return this.parseOrExpression();
   }
 
+  // Analisa expressões com operador OR (precedência mais baixa)
   parseOrExpression() {
     let left = this.parseAndExpression();
     if (!left) return null;
@@ -488,6 +505,7 @@ export class SQLParser {
     return left;
   }
 
+  // Analisa expressões com operador AND
   parseAndExpression() {
     let left = this.parseArithmeticExpression();
     if (!left) return null;
@@ -502,6 +520,7 @@ export class SQLParser {
     return left;
   }
 
+  // Analisa expressões aritméticas (+, -, *, /, %, ||)
   parseArithmeticExpression() {
     let left = this.parseNotExpression();
     if (!left) return null;
@@ -516,6 +535,7 @@ export class SQLParser {
     return left;
   }
 
+  // Analisa operador NOT (unário) e delega para predicados
   parseNotExpression() {
     if (this.match('NOT')) {
       const operator = this.next().value;
@@ -525,6 +545,7 @@ export class SQLParser {
     return this.parsePredicate();
   }
 
+  // Analisa predicados: EXISTS, subconsultas, IS NULL, IN, BETWEEN, LIKE e NOT
   parsePredicate() {
     if (this.match('EXISTS')) {
       return this.parseExists();
@@ -570,6 +591,7 @@ export class SQLParser {
     return left;
   }
 
+  // Analisa operadores de comparação (=, !=, <>, <, >, <=, >=)
   parseComparison() {
     let left = this.parsePrimaryExpr();
     if (!left) return null;
@@ -586,6 +608,7 @@ export class SQLParser {
     return left;
   }
 
+  // Analisa expressões primárias: CASE, subconsultas, literais, bind variables, colunas e funções
   parsePrimaryExpr() {
     if (this.match('CASE')) {
       return this.parseCase();
@@ -683,6 +706,7 @@ export class SQLParser {
     return null;
   }
 
+  // Analisa lista de argumentos de chamada de função entre parênteses
   parseFunctionArgs() {
     this.expect('PUNCTUATION', '(');
     const args = [];
@@ -710,6 +734,7 @@ export class SQLParser {
     return args;
   }
 
+  // Analisa expressão CASE com WHEN/THEN/ELSE/END
   parseCase() {
     this.consume('CASE');
     let baseExpr = null;
@@ -738,6 +763,7 @@ export class SQLParser {
     return { type: 'case', base: baseExpr, cases, else: elseVal };
   }
 
+  // Analisa predicado EXISTS com subconsulta
   parseExists() {
     this.consume('EXISTS');
     this.expect('PUNCTUATION', '(');
@@ -746,6 +772,7 @@ export class SQLParser {
     return { type: 'exists', query };
   }
 
+  // Analisa predicado IN com lista de valores ou subconsulta (suporta NOT IN)
   parseIn(left, negated = false) {
     this.consume('IN');
     this.expect('PUNCTUATION', '(');
@@ -767,6 +794,7 @@ export class SQLParser {
     return { type: 'in', expression: left, list, negated };
   }
 
+  // Analisa predicado BETWEEN com limite inferior e superior (suporta NOT BETWEEN)
   parseBetween(left, negated = false) {
     this.consume('BETWEEN');
     const low = this.parseArithmeticExpression();
@@ -775,12 +803,14 @@ export class SQLParser {
     return { type: 'between', expression: left, low, high, negated };
   }
 
+  // Analisa predicado LIKE com padrão (suporta NOT LIKE)
   parseLike(left, negated = false) {
     this.consume('LIKE');
     const pattern = this.parseExpression();
     return { type: 'like', expression: left, pattern, negated };
   }
 
+  // Analisa predicado IS NULL / IS NOT NULL
   parseIsNull(left) {
     this.consume('IS');
     const negated = !!this.consume('NOT');
@@ -788,6 +818,7 @@ export class SQLParser {
     return { type: 'is_null', expression: left, negated };
   }
 
+  // Analisa cláusula OVER de funções analíticas com PARTITION BY e ORDER BY
   parseOverClause() {
     this.consume('OVER');
     this.expect('PUNCTUATION', '(');
@@ -832,6 +863,7 @@ export class SQLParser {
     return { partitionBy, orderBy };
   }
 
+  // Analisa cláusula FROM: tabelas, joins explícitos e implícitos (vírgula)
   parseFromClause() {
     this.consume('FROM');
     const tables = [];
@@ -868,6 +900,7 @@ export class SQLParser {
     return tables;
   }
 
+  // Analisa referência base a tabela: LATERAL/TABLE, subconsulta entre parênteses ou nome simples
   parseBaseTableRef() {
     if (this.match('LATERAL') || this.match('TABLE')) {
       return this.parseLateralOrTableFunction();
@@ -878,6 +911,7 @@ export class SQLParser {
     return this.parseSimpleTableRef();
   }
 
+  // Analisa referência simples a tabela com schema, database link e alias opcionais
   parseSimpleTableRef() {
     const token = this.peek();
     if (!token) return null;
@@ -931,6 +965,7 @@ export class SQLParser {
     return null;
   }
 
+  // Analisa referência de tabela como subconsulta entre parênteses
   parseSubqueryTableRef() {
     this.expect('PUNCTUATION', '(');
     const subquery = this.parseStatement();
@@ -955,6 +990,7 @@ export class SQLParser {
     return { type: 'subquery', query: subquery, alias };
   }
 
+  // Analisa expressão LATERAL TABLE com alias opcional
   parseLateralOrTableFunction() {
     this.consume('LATERAL');
     this.consume('TABLE');
@@ -981,6 +1017,7 @@ export class SQLParser {
     return { type: 'lateral', expression: expr, alias };
   }
 
+  // Verifica se o próximo token inicia uma cláusula de JOIN
   isJoinKeyword() {
     if (!this.peek()) return false;
     const v = this.peek().value.toUpperCase();
@@ -988,6 +1025,7 @@ export class SQLParser {
            v === 'FULL' || v === 'CROSS' || v === 'OUTER' || v === 'NATURAL';
   }
 
+  // Analisa tipo de JOIN (INNER, LEFT, RIGHT, FULL, CROSS, NATURAL) com ON ou USING
   parseJoinInfo() {
     let natural = !!this.consume('NATURAL');
     let joinType = 'JOIN';
@@ -1030,6 +1068,7 @@ export class SQLParser {
     return { type: joinType, ref, natural, conditions, using };
   }
 
+  // Analisa expressão de condição após ON em um JOIN
   parseJoinConditions() {
     const conditions = [];
     const expr = this.parseExpression();
@@ -1037,11 +1076,13 @@ export class SQLParser {
     return conditions;
   }
 
+  // Analisa cláusula WHERE
   parseWhereClause() {
     this.consume('WHERE');
     return this.parseExpression();
   }
 
+  // Analisa cláusula GROUP BY com lista de expressões
   parseGroupByClause() {
     this.consume('GROUP');
     this.expect('KEYWORD', 'BY');
@@ -1055,11 +1096,13 @@ export class SQLParser {
     return columns;
   }
 
+  // Analisa cláusula HAVING
   parseHavingClause() {
     this.consume('HAVING');
     return this.parseExpression();
   }
 
+  // Analisa cláusula ORDER BY com direção (ASC/DESC) e tratamento de NULLS
   parseOrderByClause() {
     this.consume('ORDER');
     this.expect('KEYWORD', 'BY');
@@ -1085,6 +1128,7 @@ export class SQLParser {
     return columns;
   }
 
+  // Analisa cláusula CONNECT BY Oracle com PRIOR e START WITH
   parseConnectByClause() {
     this.consume('CONNECT');
     this.expect('KEYWORD', 'BY');
@@ -1101,6 +1145,7 @@ export class SQLParser {
     return { prior, condition, startWith };
   }
 
+  // Analisa operadores de conjunto: UNION [ALL], MINUS, INTERSECT, EXCEPT
   parseUnionClause() {
     if (!this.match('UNION', 'MINUS', 'INTERSECT', 'EXCEPT')) return null;
     const unions = [];
@@ -1117,6 +1162,9 @@ export class SQLParser {
   }
 }
 
+// Função pública de parsing: tokeniza o SQL e constrói a AST completa com tratamento de erros
+// @param {string} sql - Código SQL para analisar
+// @returns {Object} AST da consulta com eventuais erros de parser
 export function parse(sql) {
   try {
     const tokens = tokenize(sql);

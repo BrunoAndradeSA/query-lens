@@ -1,3 +1,10 @@
+/**
+ * Constrói o modelo de grafo de chamadas a partir da análise de Pacotes PL/SQL.
+ * @param {Object} analysis - Dados da análise semântica com nós e arestas
+ * @param {Array} analysis.nodes - Nós do programa (pacotes, procedures, funções)
+ * @param {Array} analysis.edges - Arestas de chamada/declaração entre nós
+ * @returns {{ nodes: Array, edges: Array }} Modelo de grafo de chamadas
+ */
 export function buildCallGraphModel(analysis) {
   const { nodes: semanticNodes, edges: semanticEdges } = analysis;
   const nodes = [];
@@ -78,6 +85,7 @@ export function buildCallGraphModel(analysis) {
   return { nodes, edges };
 }
 
+// Constrói o rótulo textual de um nó incluindo tipo de retorno e visibilidade
 function buildLabel(node) {
   let label = node.name;
   if (node.type === 'FUNCTION' && node.returnType) {
@@ -89,6 +97,11 @@ function buildLabel(node) {
   return label;
 }
 
+/**
+ * Calcula estatísticas do grafo de chamadas: pacotes, procedures, funções, constantes e chamadas.
+ * @param {Object} graphModel - Modelo de grafo de chamadas com nodes e edges
+ * @returns {{ nodes: number, edges: number, packages: number, procedures: number, functions: number, constants: number, variables: number, calls: number, declarations: number }} Estatísticas do grafo de chamadas
+ */
 export function getCallGraphStats(graphModel) {
   const nodes = graphModel.nodes.length;
   const edges = graphModel.edges.length;

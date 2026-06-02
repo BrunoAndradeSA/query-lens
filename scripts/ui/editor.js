@@ -1,3 +1,7 @@
+// Cria uma instância do editor Monaco com configurações padrão para SQL
+// @param {HTMLElement} container - Elemento DOM onde o editor será montado
+// @param {Object} [options] - Opções adicionais do editor
+// @returns {Object|null} Instância do editor ou null em caso de falha
 export function createEditor(container, options = {}) {
   if (!container) {
     console.error('[QueryLens] Editor container not found');
@@ -32,16 +36,25 @@ export function createEditor(container, options = {}) {
   }
 }
 
+// Define o conteúdo textual do editor
+// @param {Object} editor - Instância do editor Monaco
+// @param {string} value - Novo texto SQL a ser exibido
 export function setEditorValue(editor, value) {
   if (editor) {
     editor.setValue(value);
   }
 }
 
+// Retorna o conteúdo textual atual do editor
+// @param {Object} editor - Instância do editor Monaco
+// @returns {string} Texto SQL atual ou string vazia
 export function getEditorValue(editor) {
   return editor ? editor.getValue() : '';
 }
 
+// Formata texto SQL com indentação inteligente e capitalização de palavras-chave
+// @param {string} sql - Código SQL bruto
+// @returns {string} SQL formatado
 function formatSqlText(sql) {
   const strings = [];
   let s = sql
@@ -65,6 +78,9 @@ function formatSqlText(sql) {
   }
   sqlSrc = sqlSrc.replace(/\s+/g, ' ').trim();
 
+  // Divide uma string SQL em uma lista de tokens (palavras, operadores, delimitadores)
+  // @param {string} str - Texto a ser tokenizado
+  // @returns {string[]} Lista de tokens extraídos
   function tokenize(str) {
     const result = [];
     let buf = '';
@@ -105,9 +121,14 @@ function formatSqlText(sql) {
   }
 
   const C = 7;
+  // Calcula a coluna de indentação atual baseada no nível de subconsulta e parênteses
+  // @returns {number} Número de espaços para indentação
   function contentCol() {
     return C + 4 * subParen + (lastSubqueryInline ? 4 : 0);
   }
+  // Calcula o recuo à esquerda para alinhar uma palavra-chave dentro da coluna de conteúdo
+  // @param {string} word - Palavra-chave a ser alinhada
+  // @returns {number} Número de espaços de recuo
   function indent(word) {
     return Math.max(0, contentCol() - word.length - 1);
   }
@@ -120,6 +141,8 @@ function formatSqlText(sql) {
   let lastSubqueryInline = false;
   const out = [];
 
+  // Emite um token para a saída formatada, gerenciando espaçamento entre tokens
+  // @param {string} tok - Token a ser adicionado à saída
   function emit(tok) {
     if (out.length === 0) {
       out.push(tok);
@@ -141,6 +164,8 @@ function formatSqlText(sql) {
     }
   }
 
+  // Verifica se o contexto atual está no nível principal da consulta (fora de subconsultas aninhadas)
+  // @returns {boolean} Verdadeiro se estiver no nível superior
   function isTop() {
     return parenDepth === 0 || subParen > 0;
   }
@@ -400,6 +425,9 @@ function formatSqlText(sql) {
   return result.replace(/ +\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+// Formata o SQL atual do editor in-place e retorna se houve alteração
+// @param {Object} editor - Instância do editor Monaco
+// @returns {boolean} Verdadeiro se o SQL foi formatado com sucesso
 export function formatInEditor(editor) {
   if (!editor) return false;
   try {
@@ -415,6 +443,8 @@ export function formatInEditor(editor) {
   }
 }
 
+// Define os temas escuro e claro do Monaco e ativa o tema informado
+// @param {string} theme - Nome do tema ('light' ou 'dark')
 export function setEditorTheme(theme) {
   try {
     monaco.editor.defineTheme('querylens-dark', {

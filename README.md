@@ -117,6 +117,79 @@ query-lens/
     └── plsql-parser.test.js
 ```
 
+### 📊 Diagrama de sequência (chamadas de funções)
+
+```mermaid
+sequenceDiagram
+  participant U as Usuário
+  participant E as Editor (Monaco)
+  participant A as app.js
+  participant D as code-type-detector.js
+  participant SP as sql-parser.js
+  participant AB as ast-builder.js
+  participant RE as relationship-extractor.js
+  participant GB as graph-builder.js
+  participant CE as cost-estimator.js
+  participant PP as plsql-parser.js
+  participant PA as package-analyzer.js
+  participant CB as call-graph-builder.js
+  participant GR as graph-renderer.js
+  participant GL as graph-layout.js
+
+  Note over U,GL: Fluxo SQL
+  U->>E: Digita SQL (ex: SELECT * FROM t)
+  E->>A: Ctrl+Enter / debounce
+  A->>D: detectCodeType(sql)
+  D-->>A: CODE_TYPE.SQL
+  A->>SP: buildAst(sql)
+  SP->>SP: tokenize() → parseSelect() → AST
+  SP-->>A: AST (validation)
+  A->>RE: extractRelationships(validation)
+  RE->>RE: extrai tabelas, JOINs, CTEs, subqueries
+  RE-->>A: relationships
+  A->>GB: buildGraphModel(relationships)
+  GB-->>A: graphModel (nós + arestas)
+  A->>CE: estimateQueryCost(validation)
+  CE-->>A: queryCost
+  A->>GR: update(graphModel, layoutName)
+  GR->>GL: applyLayout(cy, layoutName)
+  GL-->>GR: layout aplicado
+  GR-->>U: Grafo interativo renderizado
+
+  Note over U,GL: Fluxo Package
+  U->>E: Digita Package (CREATE PACKAGE ...)
+  E->>A: Ctrl+Enter / debounce
+  A->>D: detectCodeType(sql)
+  D-->>A: CODE_TYPE.PACKAGE
+  A->>PP: tokenize(sql) → new PLSQLParser(tokens).parse()
+  PP->>PP: parseSpec() → parseBody() → AST
+  PP-->>A: parsed (spec + body)
+  A->>PA: analyzePackage(parsed)
+  PA->>PA: mapeia nós (PACKAGE, PROCEDURE, FUNCTION) e arestas (DECLARES, CALLS)
+  PA-->>A: analysis (semantic model)
+  A->>CB: buildCallGraphModel(analysis)
+  CB->>CB: filtra CONSTANT/GLOBAL_VARIABLE, gera modelo Cytoscape
+  CB-->>A: graphModel (isCallGraph)
+  A->>GR: update(graphModel, layoutName)
+  GR->>GL: applyLayout → detecta call graph → breadthfirst
+  GL-->>GR: layout hierárquico
+  GR-->>U: Call graph interativo
+
+  Note over A: Validação (botão Validate)
+  U->>A: Clique "Validate"
+  A->>D: detectCodeType(sql)
+  alt CODE_TYPE.PACKAGE
+    A->>PP: tokenize + PLSQLParser → parsed.errors
+    PP-->>A: erros ou sucesso
+  else CODE_TYPE.SQL
+    A->>AB: validateSql(sql)
+    AB->>SP: buildAst(sql)
+    SP-->>AB: AST com erros
+    AB-->>A: { valid, errors }
+  end
+  A-->>U: Notificação (sucesso/erro)
+```
+
 ### 🔄 Pipeline de processamento
 
 ```
