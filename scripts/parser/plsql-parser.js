@@ -308,7 +308,6 @@ export class PLSQLParser {
     if (this.match('AUTHID')) {
       this.next();
       if (this.match('CURRENT_USER') || this.match('DEFINER')) this.next();
-      this.consume('AS');
     }
   }
 

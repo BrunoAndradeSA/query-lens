@@ -370,6 +370,382 @@ describe('Robustness', () => {
   });
 });
 
+describe('Advanced PL/SQL Syntax', () => {
+  it('accepts IS instead of AS in spec', () => {
+    const code = `CREATE PACKAGE test_pkg IS
+      PROCEDURE proc1;
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.equal(result.spec.procedures.length, 1);
+  });
+
+  it('accepts IS instead of AS in body', () => {
+    const code = `CREATE PACKAGE BODY test_pkg IS
+      PROCEDURE proc1 IS BEGIN NULL; END;
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.ok(result.body);
+  });
+
+  it('parses AUTHID CURRENT_USER', () => {
+    const code = `CREATE PACKAGE test_pkg AUTHID CURRENT_USER AS
+      PROCEDURE proc1;
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.equal(result.spec.procedures.length, 1);
+  });
+
+  it('parses AUTHID DEFINER', () => {
+    const code = `CREATE PACKAGE test_pkg AUTHID DEFINER AS
+      PROCEDURE proc1;
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.equal(result.spec.procedures.length, 1);
+  });
+
+  it('parses quoted package name', () => {
+    const code = `CREATE PACKAGE "MyPackage" AS
+      PROCEDURE proc1;
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.equal(result.name, 'MyPackage');
+  });
+
+  it('ignores PRAGMA in spec', () => {
+    const code = `CREATE PACKAGE test_pkg AS
+      PRAGMA SERIALLY_REUSABLE;
+      PROCEDURE proc1;
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.equal(result.spec.procedures.length, 1);
+  });
+
+  it('parses schema-qualified package name', () => {
+    const code = `CREATE PACKAGE schema.test_pkg AS
+      PROCEDURE proc1;
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.equal(result.spec.procedures.length, 1);
+  });
+
+  it('handles DEFAULT keyword in variable declaration', () => {
+    const code = `CREATE PACKAGE test_pkg AS
+      gv_var VARCHAR2(100) DEFAULT 'default_val';
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.equal(result.spec.globalVariables.length, 1);
+  });
+
+  it('handles NOT NULL with DEFAULT', () => {
+    const code = `CREATE PACKAGE test_pkg AS
+      gv_var VARCHAR2(100) NOT NULL := 'x';
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.equal(result.spec.globalVariables.length, 1);
+  });
+
+  it('handles IN OUT and OUT parameter modes', () => {
+    const code = `CREATE PACKAGE test_pkg AS
+      PROCEDURE proc1(p_in IN NUMBER, p_out OUT VARCHAR2, p_inout IN OUT DATE);
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    const params = result.spec.procedures[0].params;
+    assert.equal(params.length, 3);
+    assert.equal(params[1].mode, 'OUT');
+    assert.equal(params[2].mode, 'IN OUT');
+  });
+
+  it('handles parameters with DEFAULT', () => {
+    const code = `CREATE PACKAGE test_pkg AS
+      PROCEDURE proc1(p_id IN NUMBER DEFAULT 0, p_name VARCHAR2 := 'anon');
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.equal(result.spec.procedures[0].params.length, 2);
+  });
+
+  it('handles empty parameter list', () => {
+    const code = `CREATE PACKAGE test_pkg AS
+      PROCEDURE proc1();
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.equal(result.spec.procedures.length, 1);
+  });
+
+  it('detects calls inside nested control structures', () => {
+    const code = `CREATE PACKAGE BODY test_pkg AS
+      PROCEDURE proc_a IS
+      BEGIN
+        IF TRUE THEN
+          LOOP
+            proc_b;
+            EXIT WHEN TRUE;
+          END LOOP;
+        END IF;
+      END;
+      PROCEDURE proc_b IS BEGIN NULL; END;
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    const procA = result.body.privateProcedures.find(p => p.name.toUpperCase() === 'PROC_A');
+    assert.ok(procA.calls.some(c => c.name.toUpperCase() === 'PROC_B'));
+  });
+
+  it('handles EXCEPTION block in procedure', () => {
+    const code = `CREATE PACKAGE BODY test_pkg AS
+      PROCEDURE proc1 IS
+      BEGIN
+        NULL;
+      EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+          NULL;
+        WHEN OTHERS THEN
+          NULL;
+      END;
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.ok(result.body.privateProcedures.length >= 1);
+  });
+
+  it('handles package body with only init block', () => {
+    const code = `CREATE OR REPLACE PACKAGE test_pkg AS
+      PROCEDURE proc1;
+    END;
+    /
+    CREATE OR REPLACE PACKAGE BODY test_pkg AS
+      v_init NUMBER := 1;
+    BEGIN
+      NULL;
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.ok(result.body);
+  });
+
+  it('consumes / delimiter after END', () => {
+    const code = `CREATE PACKAGE test_pkg AS
+      PROCEDURE proc1;
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.equal(result.spec.procedures.length, 1);
+  });
+
+  it('ignores CURSOR declarations', () => {
+    const code = `CREATE PACKAGE test_pkg AS
+      CURSOR c_cust IS SELECT * FROM customers;
+      PROCEDURE proc1;
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.equal(result.spec.procedures.length, 1);
+  });
+
+  it('ignores TYPE declarations', () => {
+    const code = `CREATE PACKAGE test_pkg AS
+      TYPE t_rec IS RECORD (id NUMBER, name VARCHAR2(100));
+      TYPE t_tab IS TABLE OF t_rec;
+      PROCEDURE proc1;
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.equal(result.spec.procedures.length, 1);
+  });
+
+  it('ignores SUBTYPE declarations', () => {
+    const code = `CREATE PACKAGE test_pkg AS
+      SUBTYPE t_num IS NUMBER;
+      PROCEDURE proc1;
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.equal(result.spec.procedures.length, 1);
+  });
+
+  it('handles %TYPE and %ROWTYPE attributes', () => {
+    const code = `CREATE PACKAGE BODY test_pkg AS
+      PROCEDURE proc1 IS
+        v_name customers.name%TYPE;
+        v_row customers%ROWTYPE;
+      BEGIN
+        NULL;
+      END;
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.ok(result.body);
+  });
+
+  it('ignores PRAGMA inside function body', () => {
+    const code = `CREATE PACKAGE BODY test_pkg AS
+      FUNCTION func1 RETURN NUMBER IS
+        PRAGMA AUTONOMOUS_TRANSACTION;
+      BEGIN
+        RETURN 1;
+      END;
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.ok(result.body.privateFunctions.length >= 1);
+  });
+
+  it('ignores EXCEPTION type declaration', () => {
+    const code = `CREATE PACKAGE test_pkg AS
+      e_custom EXCEPTION;
+      PROCEDURE proc1;
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    assert.equal(result.spec.procedures.length, 1);
+  });
+
+  it('filters built-in names from call detection', () => {
+    const code = `CREATE PACKAGE BODY test_pkg AS
+      PROCEDURE proc1 IS
+      BEGIN
+        DBMS_OUTPUT.PUT_LINE('test');
+        TO_CHAR(SYSDATE, 'YYYY');
+        COMMIT;
+        NULL;
+      END;
+    END;
+    /`;
+    const tokens = tokenize(code);
+    const parser = new PLSQLParser(tokens);
+    const result = parser.parse();
+    const proc1 = result.body.privateProcedures[0];
+    assert.ok(!proc1.calls || proc1.calls.length === 0,
+      'Built-in calls should not be detected: ' + JSON.stringify(proc1.calls));
+  });
+});
+
+describe('buildCallGraphModel - Edge Cases', () => {
+  it('handles empty analysis', () => {
+    const model = buildCallGraphModel({ nodes: [], edges: [] });
+    assert.deepEqual(model.nodes, []);
+    assert.deepEqual(model.edges, []);
+  });
+
+  it('filters CONTAINS edges', () => {
+    const analysis = {
+      nodes: [
+        { id: 'n1', name: 'test', type: 'PACKAGE' },
+        { id: 'n2', name: 'proc1', type: 'PROCEDURE' }
+      ],
+      edges: [
+        { source: 'n1', target: 'n2', type: 'CONTAINS' }
+      ]
+    };
+    const model = buildCallGraphModel(analysis);
+    assert.equal(model.edges.length, 0);
+  });
+
+  it('deduplicates edges by source-target-type', () => {
+    const analysis = {
+      nodes: [
+        { id: 'n1', name: 'test', type: 'PACKAGE' },
+        { id: 'n2', name: 'proc1', type: 'PROCEDURE' }
+      ],
+      edges: [
+        { source: 'n1', target: 'n2', type: 'DECLARES' },
+        { source: 'n1', target: 'n2', type: 'DECLARES' }
+      ]
+    };
+    const model = buildCallGraphModel(analysis);
+    const declares = model.edges.filter(e => e.data.edgeType === 'DECLARES');
+    assert.equal(declares.length, 1);
+  });
+
+  it('buildLabel omits return type for non-functions', () => {
+    const model = buildCallGraphModel({
+      nodes: [{ id: 'n1', name: 'proc1', type: 'PROCEDURE' }],
+      edges: []
+    });
+    const label = model.nodes[0].data.label;
+    assert.equal(label, 'proc1');
+  });
+
+  it('getCallGraphStats returns zeros for empty graph', () => {
+    const stats = getCallGraphStats({ nodes: [], edges: [] });
+    assert.equal(stats.nodes, 0);
+    assert.equal(stats.edges, 0);
+    assert.equal(stats.packages, 0);
+    assert.equal(stats.procedures, 0);
+    assert.equal(stats.calls, 0);
+  });
+
+  it('getCallGraphStats includes constants/globals from package data', () => {
+    const model = buildCallGraphModel({
+      nodes: [
+        { id: 'p1', name: 'test', type: 'PACKAGE', _constants: [{ name: 'c_ver' }], _globals: [{ name: 'g_cnt' }] },
+        { id: 'n2', name: 'proc1', type: 'PROCEDURE' }
+      ],
+      edges: [
+        { source: 'p1', target: 'n2', type: 'DECLARES' }
+      ]
+    });
+    const stats = getCallGraphStats(model);
+    assert.equal(stats.constants, 1);
+    assert.equal(stats.variables, 1);
+  });
+});
+
 describe('Complete Customer Package Example', () => {
   const code = `CREATE OR REPLACE PACKAGE customer_pkg AS
   gc_max_credit CONSTANT NUMBER(10,2) := 50000.00;
