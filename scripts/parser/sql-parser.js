@@ -410,6 +410,8 @@ export class SQLParser {
     let connectBy = null;
     if (this.match('CONNECT')) {
       connectBy = this.parseConnectByClause();
+    } else if (this.match('START')) {
+      connectBy = this.parseStartWithConnectBy();
     }
 
     if (columns.length === 0) {
@@ -1147,6 +1149,22 @@ export class SQLParser {
       else break;
     } while (this.peek() && !this.match('UNION', 'MINUS', 'INTERSECT', 'EXCEPT', 'FOR', 'CONNECT', ')'));
     return columns;
+  }
+
+  // Analisa START WITH ... CONNECT BY PRIOR ... (ordem inversa)
+  parseStartWithConnectBy() {
+    this.consume('START');
+    this.expect('KEYWORD', 'WITH');
+    const startWith = this.parseExpression();
+    let prior = false;
+    let condition = null;
+    if (this.match('CONNECT')) {
+      this.consume('CONNECT');
+      this.expect('KEYWORD', 'BY');
+      prior = !!this.consume('PRIOR');
+      condition = this.parseExpression();
+    }
+    return { prior, condition, startWith };
   }
 
   // Analisa cláusula CONNECT BY Oracle com PRIOR e START WITH
