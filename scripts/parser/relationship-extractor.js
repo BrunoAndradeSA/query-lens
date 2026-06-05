@@ -334,8 +334,9 @@ function extractFromExpression(expr, tables, relationships) {
       const rightTable = resolveTableName(rightCol.table, tables);
       if (leftTable && rightTable && leftTable !== rightTable) {
         const existing = relationships.some(r =>
-          (r.source === leftTable && r.target === rightTable) ||
-          (r.source === rightTable && r.target === leftTable)
+          r.joinType !== 'CROSS JOIN' &&
+          ((r.source === leftTable && r.target === rightTable) ||
+           (r.source === rightTable && r.target === leftTable))
         );
         if (!existing) {
           relationships.push({
