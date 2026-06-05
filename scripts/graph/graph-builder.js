@@ -33,6 +33,11 @@ export function buildGraphModel(relationshipsData) {
     nodes.push(node);
   }
 
+  const hasWhereRel = (a, b) => relationships.some(r =>
+    r.joinType === 'WHERE' &&
+    ((r.source === a && r.target === b) || (r.source === b && r.target === a))
+  );
+
   for (const rel of relationships) {
     const sourceId = rel.source;
     const targetId = rel.target;
@@ -49,6 +54,10 @@ export function buildGraphModel(relationshipsData) {
     }
 
     if (!tables.find(t => t.id === sourceId) || !tables.find(t => t.id === targetId)) {
+      continue;
+    }
+
+    if (rel.joinType === 'CROSS JOIN' && hasWhereRel(sourceId, targetId)) {
       continue;
     }
 
