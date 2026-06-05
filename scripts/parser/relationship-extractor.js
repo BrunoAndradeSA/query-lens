@@ -115,12 +115,33 @@ function processTableRef(ref, tables, relationships, subqueries, parentStatement
         originalName: tableId,
         columns: collectReferencedColumns(ref, parentStatement)
       });
-    } else {
-      const entry = tables.get(key);
-      if (ref.alias && !entry.aliases.includes(ref.alias)) {
-        entry.aliases.push(ref.alias);
-        if (!entry.alias) entry.alias = ref.alias;
+      return key;
+    }
+
+    const entry = tables.get(key);
+    const hasAlias = ref.alias && ref.alias.length > 0;
+
+    if (hasAlias && !entry.aliases.includes(ref.alias)) {
+      const dupKey = `${tableId}__${ref.alias}`;
+      if (!tables.has(dupKey)) {
+        tables.set(dupKey, {
+          id: dupKey,
+          name: ref.name,
+          schema: ref.schema || null,
+          alias: ref.alias,
+          aliases: [ref.alias],
+          type: 'table',
+          dbLink: ref.dbLink || null,
+          originalName: tableId,
+          columns: collectReferencedColumns(ref, parentStatement)
+        });
       }
+      return dupKey;
+    }
+
+    if (ref.alias && !entry.aliases.includes(ref.alias)) {
+      entry.aliases.push(ref.alias);
+      if (!entry.alias) entry.alias = ref.alias;
     }
     return key;
   }
