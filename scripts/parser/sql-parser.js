@@ -12,7 +12,7 @@ const KEYWORDS = new Set([
   'CREATE', 'REPLACE', 'ALTER', 'DROP', 'TRUNCATE', 'COMMENT', 'RENAME',
   'GRANT', 'REVOKE',
   'OVER', 'PARTITION', 'RANGE', 'UNBOUNDED', 'PRECEDING', 'FOLLOWING',
-  'CURRENT'
+  'CURRENT', 'APPLY'
 ]);
 
 const ORACLE_FUNCTIONS = new Set([
@@ -1025,7 +1025,7 @@ export class SQLParser {
            v === 'FULL' || v === 'CROSS' || v === 'OUTER' || v === 'NATURAL';
   }
 
-  // Analisa tipo de JOIN (INNER, LEFT, RIGHT, FULL, CROSS, NATURAL) com ON ou USING
+  // Analisa tipo de JOIN (INNER, LEFT, RIGHT, FULL, CROSS, NATURAL) ou APPLY (CROSS APPLY, OUTER APPLY)
   parseJoinInfo() {
     let natural = !!this.consume('NATURAL');
     let joinType = 'JOIN';
@@ -1034,8 +1034,18 @@ export class SQLParser {
     else if (this.consume('LEFT')) { joinType = 'LEFT JOIN'; this.consume('OUTER'); }
     else if (this.consume('RIGHT')) { joinType = 'RIGHT JOIN'; this.consume('OUTER'); }
     else if (this.consume('FULL')) { joinType = 'FULL JOIN'; this.consume('OUTER'); }
-    else if (this.consume('CROSS')) joinType = 'CROSS JOIN';
-    else if (this.consume('OUTER')) joinType = 'OUTER JOIN';
+
+    if (this.consume('CROSS')) {
+      if (this.consume('APPLY')) {
+        return this.parseApplyRef('CROSS APPLY');
+      }
+      joinType = 'CROSS JOIN';
+    } else if (this.consume('OUTER')) {
+      if (this.consume('APPLY')) {
+        return this.parseApplyRef('OUTER APPLY');
+      }
+      joinType = 'OUTER JOIN';
+    }
 
     this.expect('KEYWORD', 'JOIN');
 
@@ -1066,6 +1076,17 @@ export class SQLParser {
     }
 
     return { type: joinType, ref, natural, conditions, using };
+  }
+
+  // Analisa subquery após CROSS APPLY ou OUTER APPLY: (SELECT ...) alias
+  parseApplyRef(joinType) {
+    if (!this.match('(')) {
+      this.errors.push({ message: 'Expected ( after APPLY', position: this.pos });
+      return null;
+    }
+    const ref = this.parseSubqueryTableRef();
+    if (!ref) return null;
+    return { type: joinType, ref, natural: false, conditions: [], using: null };
   }
 
   // Analisa expressão de condição após ON em um JOIN
