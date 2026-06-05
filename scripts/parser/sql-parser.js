@@ -145,6 +145,12 @@ export function tokenize(sql) {
       continue;
     }
 
+    if (sql[i] === '(' && sql[i + 1] === '+' && sql[i + 2] === ')') {
+      tokens.push({ type: 'OPERATOR', value: '(+)', position: i });
+      i += 3;
+      continue;
+    }
+
     if (sql[i] === '(' || sql[i] === ')' || sql[i] === ',' || sql[i] === ';') {
       tokens.push({ type: 'PUNCTUATION', value: sql[i], position: i });
       i++;
@@ -685,24 +691,31 @@ export class SQLParser {
         return { type: 'literal', valueType: 'datetime', value: strToken.value, subtype: upperName };
       }
 
+      let columnRef;
       if (this.peek() && this.peek().value === '.') {
         this.next();
         const columnToken = this.peek();
         if (columnToken && (columnToken.type === 'IDENTIFIER' || columnToken.type === 'KEYWORD')) {
           const column = this.next().value;
-          return { type: 'column_ref', table: name, column };
+          columnRef = { type: 'column_ref', table: name, column };
+        } else {
+          this.pos--;
+          columnRef = { type: 'column_ref', table: null, column: name };
         }
-        this.pos--;
-        return { type: 'column_ref', table: null, column: name };
-      }
-
-      if (this.peek() && this.peek().value === '@') {
+      } else if (this.peek() && this.peek().value === '@') {
         this.next();
         const dbLink = this.next();
-        return { type: 'column_ref', table: null, column: name, dbLink: dbLink ? dbLink.value : null };
+        columnRef = { type: 'column_ref', table: null, column: name, dbLink: dbLink ? dbLink.value : null };
+      } else {
+        columnRef = { type: 'column_ref', table: null, column: name };
       }
 
-      return { type: 'column_ref', table: null, column: name };
+      if (columnRef && this.peek() && this.peek().value === '(+)') {
+        this.next();
+        columnRef.outerJoin = true;
+      }
+
+      return columnRef;
     }
 
     return null;

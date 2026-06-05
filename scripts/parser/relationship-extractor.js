@@ -295,7 +295,8 @@ function resolveColumnRef(expr) {
     return {
       table: expr.table || null,
       column: expr.column,
-      fullName: expr.table ? `${expr.table}.${expr.column}` : expr.column
+      fullName: expr.table ? `${expr.table}.${expr.column}` : expr.column,
+      outerJoin: expr.outerJoin || false
     };
   }
   return null;
@@ -339,10 +340,26 @@ function extractFromExpression(expr, tables, relationships) {
            (r.source === rightTable && r.target === leftTable))
         );
         if (!existing) {
+          const outerLeft = leftCol.outerJoin;
+          const outerRight = rightCol.outerJoin;
+          let source, target, joinType;
+          if (outerLeft) {
+            source = rightTable;
+            target = leftTable;
+            joinType = 'LEFT JOIN';
+          } else if (outerRight) {
+            source = leftTable;
+            target = rightTable;
+            joinType = 'LEFT JOIN';
+          } else {
+            source = leftTable;
+            target = rightTable;
+            joinType = 'WHERE';
+          }
           relationships.push({
-            source: leftTable,
-            target: rightTable,
-            joinType: 'WHERE',
+            source,
+            target,
+            joinType,
             natural: false,
             using: null,
             conditions: [expr],
@@ -351,7 +368,8 @@ function extractFromExpression(expr, tables, relationships) {
               right: { ...rightCol, table: rightTable },
               operator: '='
             }],
-            implicit: true
+            implicit: true,
+            outerJoin: outerLeft || outerRight || false
           });
         }
       }

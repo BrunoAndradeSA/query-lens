@@ -34,7 +34,7 @@ export function buildGraphModel(relationshipsData) {
   }
 
   const hasWhereRel = (a, b) => relationships.some(r =>
-    r.joinType === 'WHERE' &&
+    (r.joinType === 'WHERE' || r.joinType === 'LEFT JOIN' || r.joinType === 'RIGHT JOIN') &&
     ((r.source === a && r.target === b) || (r.source === b && r.target === a))
   );
 
@@ -91,7 +91,8 @@ export function buildGraphModel(relationshipsData) {
         using: rel.using || null,
         conditions: rel.conditions || [],
         fields,
-        implicit: !!rel.implicit
+        implicit: !!rel.implicit,
+        outerJoin: !!rel.outerJoin
       }
     };
     edges.push(edge);
